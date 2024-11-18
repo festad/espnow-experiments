@@ -449,47 +449,49 @@ void patched_lmacTxFrame(int param_1, int param_2)
     // Doesn't work
 
 
-    // First, let's backup the 16 bytes following the first 15 on the PHY details (because
-    // we are going to substitute them with our own RTS frame, and then restore them)
-    unsigned char backup[16];
-    memcpy(backup, (char *)0x4081ecd1+15, 16);
+    // // First, let's backup the 16 bytes following the first 15 on the PHY details (because
+    // // we are going to substitute them with our own RTS frame, and then restore them)
+    // unsigned char backup[16];
+    // memcpy(backup, (char *)0x4081ecd1+15, 16);
 
-    esp_rom_delay_us(50000);
+    // esp_rom_delay_us(50000);
 
-    // Injection of custom packet
-    // From address 0x4081ecd1 (the start of the packet),
-    // we skip the 15 bytes of physical layer info,
-    // then we copy the following array (16 bytes)
-    unsigned char rts[] = {
-        // 0x0, 0x0, 0xf, 0x0, 0x2e, 0x0, 0x0, 0x0, 0x10, 0x2, 0x85, 0x9, 0xa0, 0x0, 0xa8, // physical layer
-        0xb4, // subtype
-        0x0, // htc order flag
-        0xce, 0x7, // duration
-        0x08, 0x16, 0x05, 0xcc, 0xc6, 0x7c, // receiver address
-        0x4a, 0xfe, 0xca, 0x52, 0xde, 0x63, // transmitter address
-        // 0x90, 0x25, 0x75, 0x8a
-        };
+    // // Injection of custom packet
+    // // From address 0x4081ecd1 (the start of the packet),
+    // // we skip the 15 bytes of physical layer info,
+    // // then we copy the following array (16 bytes)
+    // unsigned char rts[] = {
+    //     // 0x0, 0x0, 0xf, 0x0, 0x2e, 0x0, 0x0, 0x0, 0x10, 0x2, 0x85, 0x9, 0xa0, 0x0, 0xa8, // physical layer
+    //     0xb4, // subtype
+    //     0x0, // htc order flag
+    //     0xce, 0x7, // duration
+    //     0x08, 0x16, 0x05, 0xcc, 0xc6, 0x7c, // receiver address
+    //     0x4a, 0xfe, 0xca, 0x52, 0xde, 0x63, // transmitter address
+    //     // 0x90, 0x25, 0x75, 0x8a
+    //     };
 
-    // base + Phy + MAC Action + ESPNOW_HEAD
-    // memcpy((0x4081ecd1+15+24+15), rts, 16);
-    memcpy((char *)0x4081ecd1+15, rts, 16);
+    // // base + Phy + MAC Action + ESPNOW_HEAD
+    // // memcpy((0x4081ecd1+15+24+15), rts, 16);
+    // memcpy((char *)0x4081ecd1+15, rts, 16);
 
-    esp_rom_delay_us(50000);
+    // esp_rom_delay_us(50000);
 
-    // Now we send #n_rts RTS 
-    int n_rts = 100;
-    for (int i = 0; i < n_rts; i++) 
-    {
-        esp_rom_delay_us(1000);
-        *puVar5 |= 0xc0000000;
-    }
+    // // // Now we send #n_rts RTS 
+    // // int n_rts = 100;
+    // // for (int i = 0; i < n_rts; i++) 
+    // // {
+    // //     esp_rom_delay_us(1000);
+    // //     *puVar5 |= 0xc0000000;
+    // // }
 
-    // *puVar5 |= 0xc0000000;
+    // // *puVar5 |= 0xc0000000;
 
-    esp_rom_delay_us(50000);
+    // esp_rom_delay_us(50000);
 
-    // // And we restore the original packet
-    memcpy((char *)0x4081ecd1+15, backup, 16);
+    // // // And we restore the original packet
+    // memcpy((char *)0x4081ecd1+15, backup, 16);
+
+    
     *puVar5 |= 0xc0000000;
 
     iVar7 = *(int *)(iVar3 + (char *)our_instances_ptr);
@@ -533,7 +535,7 @@ bool patched_lmacIsLongFrame(int param_1)
 
 
 
-int patched_esp_now_send(int param_1, int param_2, uint32_t param_3)
+int patched_esp_now_send(int ptr_dest_mac, int ptr_data_buffer, uint32_t len)
 {
     int iVar1;
     int uVar2;
@@ -569,7 +571,7 @@ int patched_esp_now_send(int param_1, int param_2, uint32_t param_3)
         iVar1 = 0x3065;
         mutex_unlock_wrapper(g_espnow_lock);
     }
-    else if (param_1 == 0)
+    else if (ptr_dest_mac == 0)
     {
         iVar1 = 0x3069;
         iVar4 = wifi_malloc(0x24);
@@ -592,7 +594,7 @@ int patched_esp_now_send(int param_1, int param_2, uint32_t param_3)
                     free(iVar4);
                     goto LAB_4201FBA6;
                 }
-                iVar1 = patched_mt_send(iVar4, param_2, param_3);
+                iVar1 = patched_mt_send(iVar4, ptr_data_buffer, len);
                 iVar3 = 0;
             }
             while (iVar1 == 0);
@@ -603,7 +605,7 @@ int patched_esp_now_send(int param_1, int param_2, uint32_t param_3)
     }
     else
     {
-        iVar1 = patched_mt_send(param_1, param_2, param_3);
+        iVar1 = patched_mt_send(ptr_dest_mac, ptr_data_buffer, len);
         LAB_4201FBA6:
             mutex_unlock_wrapper(g_espnow_lock);
     }
@@ -611,15 +613,15 @@ int patched_esp_now_send(int param_1, int param_2, uint32_t param_3)
 }
 
 
-int patched_mt_send(void *param_1, int param_2, uint32_t param_3)
+int patched_mt_send(void *ptr_dest_mac, int ptr_data_buffer, uint32_t len)
 {
     int iVar1;
     int *piVar2;
     uint32_t uVar4;
     char *pcVar5;
 
-    if (((param_1 == 0) || (param_2 == 0)) ||
-        (piVar2 = *(int *)((char *)&g_mt + 0x20), 0xf9 < param_3 - 1))
+    if (((ptr_dest_mac == 0) || (ptr_data_buffer == 0)) ||
+        (piVar2 = *(int *)((char *)&g_mt + 0x20), 0xf9 < len - 1))
     {
         iVar1 = 0x3066;
         uVar4 = esp_log_timestamp();
@@ -632,13 +634,13 @@ int patched_mt_send(void *param_1, int param_2, uint32_t param_3)
     {
         for (; piVar2 != (int *)0x0; piVar2 = (int *)*piVar2)
         {
-            iVar1 = memcmp((int)piVar2+0xa, param_1, 6);
+            iVar1 = memcmp((int)piVar2+0xa, ptr_dest_mac, 6);
             if (iVar1 == 0)
             {
                 if ((*(char *)(piVar2 + 2) == '\0') || 
                     (*(char *)(g_chm + 0x50) == *(char *)(piVar2 + 2)))
                 {
-                    iVar1 = patched_ieee80211_send_action_vendor_spec(*(uint8_t *)((int)piVar2 + 9), param_1, param_2, (param_3 & 0xff),
+                    iVar1 = patched_ieee80211_send_action_vendor_spec(*(uint8_t *)((int)piVar2 + 9), ptr_dest_mac, ptr_data_buffer, (len & 0xff),
                                                               *(int *)((char *)&g_mt + 0x38) != 0, piVar2[6]);
                     if (iVar1 == 0)
                     {

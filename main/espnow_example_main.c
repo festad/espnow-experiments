@@ -37,7 +37,7 @@
 
 #define MY_ESPNOW_IF 0
 
-#define CONFIG_ESPNOW_SEND_MY_LEN 20
+#define CONFIG_ESPNOW_SEND_MY_LEN 230
 
 static const char *TAG = "espnow_example";
 
@@ -183,8 +183,8 @@ void example_espnow_data_prepare(example_espnow_send_param_t *send_param)
     buf->crc = 0;
     buf->magic = send_param->magic;
     /* Fill all remaining bytes after the data with random values */
-    esp_fill_random(buf->payload, send_param->len - sizeof(example_espnow_data_t));
-    // esp_fill_cafebabe(buf->payload, send_param->len - sizeof(example_espnow_data_t));
+    // esp_fill_random(buf->payload, send_param->len - sizeof(example_espnow_data_t));
+    esp_fill_cafebabe(buf->payload, send_param->len - sizeof(example_espnow_data_t));
     // esp_fill_de_bruijn(buf->payload);
     buf->crc = esp_crc16_le(UINT16_MAX, (uint8_t const *)buf, send_param->len);
 }
@@ -288,11 +288,15 @@ static void example_espnow_task(void *pvParameter)
                 example_espnow_data_prepare(send_param);
 
                 /* Send the next data after the previous data is sent. */
-                if (patched_esp_now_send(send_param->dest_mac, send_param->buffer, send_param->len) != ESP_OK) {
-                    ESP_LOGE(TAG, "Send error");
-                    example_espnow_deinit(send_param);
-                    vTaskDelete(NULL);
+                for(int i = 0; i < 5; i++) {
+                    if (patched_esp_now_send(send_param->dest_mac, send_param->buffer, send_param->len) != ESP_OK) {
+                        ESP_LOGE(TAG, "Send error");
+                        example_espnow_deinit(send_param);
+                        vTaskDelete(NULL);
+                    }
+                    vTaskDelay(send_param->delay/portTICK_PERIOD_MS);
                 }
+                // esp_rom_delay_us(1000);
                 break;
             }
             case EXAMPLE_ESPNOW_RECV_CB:
@@ -509,7 +513,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xc44080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xbaa080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
