@@ -31,6 +31,68 @@ static int n_frequencies = 21;
 // IMPLEMENTATION OF PATCHED FUNCTIONS
 
 
+// Function to initialize the Packet structure
+void initialize_packet(struct Packet* packet) {
+    packet->header1 = 0;
+    packet->pointer_to_3c = packet + 0x3C;
+    packet->pointer_to_3c_dup = packet + 0x3C;
+    packet->one_value = 1;
+    packet->pointer_to_90 = packet + 0x90;
+
+    // Initialize other fields based on offsets
+    memset(packet->eight_words, 0, sizeof(packet->eight_words));
+    packet->eight_words[0]=0x01090020;
+    packet->eight_words[1]=0x00010000;
+    packet->eight_words[4]=0x00002000;
+    packet->pointer_to_48 = packet + 0x48;
+    packet->empty_word_1 = 0;
+    packet->mysterious_value_1 = 0xc04a4138;  // Example value
+    packet->pointer_to_b0 = packet + 0xB0;
+    packet->empty_word_2 = 0;
+    packet->mysterious_value_6412 = 0x00006412;
+    packet->mysterious_value_7 = 7;
+    packet->empty_word_3 = 0;
+    packet->wifi_protocol = 0x00000017;  // Example protocol
+    packet->mysterious_value_2 = 0x4002D44C; // Example value
+    packet->mysterious_value_80 = 0x80;
+    packet->maybe_timestamp = 0x1A8F0BF8;  // Example timestamp
+    packet->pointer_to_4081621c = 0x4081621C;
+
+    memset(packet->eighteen_words, 0, sizeof(packet->eighteen_words));
+    packet->eighteen_words[0] = 0x00010001;
+    packet->eighteen_words[4] = 0x00040000;
+
+    packet->length = 40*4;
+    packet->zero_word = 0;
+
+    memset(packet->packet_content, 0, sizeof(packet->packet_content));
+    packet->packet_content[0] = 0xee9200d0;
+    packet->packet_content[1] = 0xffffffff;
+    packet->packet_content[2] = 0x4c40ffff;
+    packet->packet_content[3] = 0xd85751ca;
+    packet->packet_content[4] = 0xffffffff;
+    packet->packet_content[5] = 0x0000ffff;
+    packet->packet_content[6] = 0xaaaaaaaa;
+    packet->packet_content[7] = 0xaaaaaaaa;
+    packet->packet_content[8] = 0xaaaaaaaa;
+    packet->packet_content[9] = 0xaaaaaaaa;
+    packet->packet_content[10] = 0xaaaaaaaa;
+
+    packet->deadbeef = 0xDEADBEEF;
+    packet->pad_word = 0;
+    packet->pointer_to_4081ca14 = 0x4081CA14;  // Fixed address
+}
+
+// Function to initialize the SubStruct
+void initialize_substruct(struct SubStruct* substruct, uint32_t deadbeef_address) {
+    substruct->field1 = 0xB6F35AFE;  // Example value
+    substruct->field2 = 0xA760886D;  // Example value
+    substruct->self_pointer = 0x4081CA14;  // Pointer to itself
+    substruct->final_pointer = deadbeef_address; // Pointer to the address of "deadbeef"
+    memset(substruct->reserved, 0, sizeof(substruct->reserved)); // Clear the padding
+}
+
+
 void switch_channel(uint32_t frequency, uint32_t param_2)
 {
     ESP_LOGI(TAG, "Before switching channel");
@@ -1038,7 +1100,26 @@ void call_patched_lmacTxFrame(int param_1, int param_2) {
     ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
     // Set the frequency
     switch_channel(next_frequency, 0);
-    return patched_lmacTxFrame(param_1, param_2);
+
+    struct Packet packet;
+    initialize_packet(&packet);
+    uint32_t deadbeef_address = (uint32_t)&(packet.deadbeef);
+
+    struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    initialize_substruct(substruct, deadbeef_address);
+
+    patched_lmacTxFrame(param_1, param_2);
+    esp_rom_delay_us(1000000);
+    patched_lmacTxFrame(&packet, 0);
+    esp_rom_delay_us(1000000);
+    patched_lmacTxFrame(&packet, 0);
+    esp_rom_delay_us(1000000);
+    patched_lmacTxFrame(&packet, 0);
+    esp_rom_delay_us(1000000);
+    patched_lmacTxFrame(&packet, 0);
+    esp_rom_delay_us(1000000);
+
+    return;
 }
 
 // Insert cafebabe into the paylod (substitute for esp_fill_random)
