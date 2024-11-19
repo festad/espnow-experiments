@@ -44,6 +44,7 @@ void initialize_packet(struct Packet* packet) {
     packet->eight_words[0]=0x01090020;
     packet->eight_words[1]=0x00010000;
     packet->eight_words[4]=0x00002000;
+    packet->eight_words[7]=0xc04a4138;
     packet->pointer_to_48 = packet + 0x48;
     packet->empty_word_1 = 0;
     packet->mysterious_value_1 = 0xc04a4138;  // Example value
@@ -81,6 +82,7 @@ void initialize_packet(struct Packet* packet) {
     packet->deadbeef = 0xDEADBEEF;
     packet->pad_word = 0;
     packet->pointer_to_4081ca14 = 0x4081CA14;  // Fixed address
+    packet->pointer_to_4081ca14_dup = 0x4081CA14;  // Fixed address
 }
 
 // Function to initialize the SubStruct
@@ -1109,15 +1111,15 @@ void call_patched_lmacTxFrame(int param_1, int param_2) {
     initialize_substruct(substruct, deadbeef_address);
 
     patched_lmacTxFrame(param_1, param_2);
-    esp_rom_delay_us(1000000);
+    // esp_rom_delay_us(1000000);
     patched_lmacTxFrame(&packet, 0);
-    esp_rom_delay_us(1000000);
+    // esp_rom_delay_us(1000000);
     patched_lmacTxFrame(&packet, 0);
-    esp_rom_delay_us(1000000);
+    // esp_rom_delay_us(1000000);
     patched_lmacTxFrame(&packet, 0);
-    esp_rom_delay_us(1000000);
+    // esp_rom_delay_us(1000000);
     patched_lmacTxFrame(&packet, 0);
-    esp_rom_delay_us(1000000);
+    // esp_rom_delay_us(1000000);
 
     return;
 }

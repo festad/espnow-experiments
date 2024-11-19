@@ -458,6 +458,18 @@ static esp_err_t example_espnow_init(void)
     memcpy(send_param->dest_mac, s_example_broadcast_mac, ESP_NOW_ETH_ALEN);
     example_espnow_data_prepare(send_param);
 
+    // switch_channel(0x96c, 0);
+
+    // struct Packet packet;
+    // initialize_packet(&packet);
+    // uint32_t deadbeef_address = (uint32_t)&(packet.deadbeef);
+
+    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    // initialize_substruct(substruct, deadbeef_address);
+
+    // patched_lmacTxFrame(&packet, 0);
+
+
     xTaskCreate(example_espnow_task, "example_espnow_task", 2048, send_param, 4, NULL);
 
     return ESP_OK;
@@ -513,7 +525,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xd3c080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xd42080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame

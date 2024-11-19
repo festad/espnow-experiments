@@ -60,6 +60,7 @@ struct Packet {
     uint32_t deadbeef;
     uint32_t pad_word;
     uint32_t pointer_to_4081ca14;
+    uint32_t pointer_to_4081ca14_dup;
 };
 
 void initialize_packet(struct Packet* packet);
