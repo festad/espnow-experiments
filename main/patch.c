@@ -820,8 +820,8 @@ int patched_ieee80211_send_action_vendor_spec(uint32_t param_1, uint8_t *param_2
         puVar4 = (uint8_t *)g_wifi_nvs;
         puVar15 = *(uint32_t **)(iVar11 + 0x34);
         // MODIFYING THE VALUE OF THE RATE
-        // *(uint8_t *)((uint8_t *)puVar15 + 0xc) = uVar8;
-        *(uint8_t *)((uint8_t *)puVar15 + 0xc) = (uint8_t)0x17;
+        *(uint8_t *)((uint8_t *)puVar15 + 0xc) = uVar8;
+        // *(uint8_t *)((uint8_t *)puVar15 + 0xc) = (uint8_t)0x17;
         uVar12 = ((uint8_t *)puVar15 + 0x10);
 
         if (param_1 == 0)
