@@ -755,7 +755,7 @@ int patched_ieee80211_send_action_vendor_spec(uint32_t param_1, uint8_t *param_2
             *(uint16_t *)(iVar11 + 0x24) = *(uint16_t *)(iVar11 + 0x24) | 0x2000;
             // *puVar15 = ((*puVar15 >> 0xe & 0x3fff) + 8 & 0x3fff) << 0xe | *puVar15 & 0xf0003fff;
             *(uint32_t *)((uint8_t *)puVar15 + 0x0) = 
-                    (( (*(uint32_t *)((uint8_t *)puVar15+0x0) >> 0xe) & 0x3fff) + (8 & 0x3fff) ) << 0xe | 
+                    ( ( ( ( (*(uint32_t *)((uint8_t *)puVar15+0x0) >> 0xe) & 0x3fff) + 8) & 0x3fff)  << 0xe) | 
                     (*(uint32_t *)((uint8_t *)puVar15 + 0x0) & 0xf0003fff);
         }
         *(uint8_t *)(*(int *)(iVar11 + 0x34) + 0x32) = *(uint8_t *)(*(int *)(iVar11 + 0x34) + 0x32) | 4;
