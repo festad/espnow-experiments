@@ -525,7 +525,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xd42080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xd8a080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame

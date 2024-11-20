@@ -32,23 +32,25 @@ static int n_frequencies = 21;
 
 
 // Function to initialize the Packet structure
-void initialize_packet(struct Packet* packet) {
+void initialize_packet(struct Packet* packet, uint32_t base_address) {
+    ESP_LOGI(TAG, "base_address 0x%"PRIx32"", base_address);
+    ESP_LOGI(TAG, "packet 0x%"PRIx32"", (uint32_t)packet);
     packet->header1 = 0;
-    packet->pointer_to_3c = packet + 0x3C;
-    packet->pointer_to_3c_dup = packet + 0x3C;
+    packet->pointer_to_3c = base_address + 0x3C;
+    packet->pointer_to_3c_dup = base_address + 0x3C;
     packet->one_value = 1;
-    packet->pointer_to_90 = packet + 0x90;
+    packet->pointer_to_90 = base_address + 0x90;
 
     // Initialize other fields based on offsets
     memset(packet->eight_words, 0, sizeof(packet->eight_words));
     packet->eight_words[0]=0x01090020;
     packet->eight_words[1]=0x00010000;
     packet->eight_words[4]=0x00002000;
-    packet->eight_words[7]=0xc04a4138;
-    packet->pointer_to_48 = packet + 0x48;
+    // packet->eight_words[7]=0xc04a4138;
+    packet->pointer_to_48 = base_address + 0x48;
     packet->empty_word_1 = 0;
-    packet->mysterious_value_1 = 0xc04a4138;  // Example value
-    packet->pointer_to_b0 = packet + 0xB0;
+    packet->mysterious_value_1 = 0xc0464138;  // Example value
+    packet->pointer_to_b0 = base_address + 0xB0;
     packet->empty_word_2 = 0;
     packet->mysterious_value_6412 = 0x00006412;
     packet->mysterious_value_7 = 7;
@@ -1103,22 +1105,24 @@ void call_patched_lmacTxFrame(int param_1, int param_2) {
     // Set the frequency
     switch_channel(next_frequency, 0);
 
-    struct Packet packet;
-    initialize_packet(&packet);
-    uint32_t deadbeef_address = (uint32_t)&(packet.deadbeef);
+    patched_lmacTxFrame(param_1, param_2);
+    
+    uint32_t base_address = 0x4081ec28;
+    struct Packet* packet = (struct Packet*)base_address;
+    initialize_packet(packet, base_address);
+    uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
 
     struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
     initialize_substruct(substruct, deadbeef_address);
 
-    patched_lmacTxFrame(param_1, param_2);
     // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(&packet, 0);
+    patched_lmacTxFrame(packet, 0);
     // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(&packet, 0);
+    patched_lmacTxFrame(packet, 0);
     // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(&packet, 0);
+    patched_lmacTxFrame(packet, 0);
     // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(&packet, 0);
+    patched_lmacTxFrame(packet, 0);
     // esp_rom_delay_us(1000000);
 
     return;

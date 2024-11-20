@@ -63,7 +63,7 @@ struct Packet {
     uint32_t pointer_to_4081ca14_dup;
 };
 
-void initialize_packet(struct Packet* packet);
+void initialize_packet(struct Packet* packet, uint32_t base_address);
 void initialize_substruct(struct SubStruct* substruct, uint32_t deadbeef_address);
 
 
