@@ -56,7 +56,7 @@ struct Packet {
     uint32_t eighteen_words[18];
     uint32_t length;
     uint32_t zero_word;
-    uint32_t packet_content[40];
+    uint32_t packet_content[10];
     uint32_t deadbeef;
     uint32_t pad_word;
     uint32_t pointer_to_4081ca14;
@@ -180,6 +180,11 @@ void force_txrx_off(int onoff);
 void set_channel_rfpll_freq(uint32_t frequency, int data_from_phy_rom_p79, int param_3);
 
 void esp_rom_delay_us(long unsigned int param_1);
+
+int ppTxPkt(uint32_t ptr_to_packet_info, int param_2);
+void ppTxProtoProc(uint32_t ptr_to_packet_info);
+int ppProcTxSecFrame(uint32_t ptr_to_packet_info);
+
 
 
 // END CLOSED SOURCE FUNCTIONS

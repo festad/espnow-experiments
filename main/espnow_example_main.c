@@ -287,16 +287,52 @@ static void example_espnow_task(void *pvParameter)
                 memcpy(send_param->dest_mac, send_cb->mac_addr, ESP_NOW_ETH_ALEN);
                 example_espnow_data_prepare(send_param);
 
-                /* Send the next data after the previous data is sent. */
-                for(int i = 0; i < 5; i++) {
-                    if (patched_esp_now_send(send_param->dest_mac, send_param->buffer, send_param->len) != ESP_OK) {
-                        ESP_LOGE(TAG, "Send error");
-                        example_espnow_deinit(send_param);
-                        vTaskDelete(NULL);
-                    }
-                    vTaskDelay(send_param->delay/portTICK_PERIOD_MS);
-                }
+                // /* Send the next data after the previous data is sent. */
+                // for(int i = 0; i < 5; i++) {
+                //     if (patched_esp_now_send(send_param->dest_mac, send_param->buffer, send_param->len) != ESP_OK) {
+                //         ESP_LOGE(TAG, "Send error");
+                //         example_espnow_deinit(send_param);
+                //         vTaskDelete(NULL);
+                //     }
+                //     vTaskDelay(send_param->delay/portTICK_PERIOD_MS);
+                // }
                 // esp_rom_delay_us(1000);
+
+                if (patched_esp_now_send(send_param->dest_mac, send_param->buffer, send_param->len) != ESP_OK) {
+                    ESP_LOGE(TAG, "Send error");
+                    example_espnow_deinit(send_param);
+                    vTaskDelete(NULL);
+                }
+
+                switch_channel(0x96c, 0);
+                ESP_LOGI(TAG, "Channel changed to 0x96c");
+
+                uint32_t base_address = 0x4081ec28;
+                struct Packet* packet = (struct Packet*)base_address;
+                initialize_packet(packet, base_address);
+                uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+
+                struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+                initialize_substruct(substruct, deadbeef_address);    
+
+                ESP_LOGI(TAG, "Calling ppTxProtoProc");
+                ppTxProtoProc(base_address);
+                ESP_LOGI(TAG, "ppProcTxSetFrame");
+                ppProcTxSecFrame(base_address);
+                ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+                patched_lmacTxFrame(base_address, 0);
+
+                // esp_rom_delay_us(1000000);
+
+                ESP_LOGI(TAG, "Calling ppTxProtoProc");
+                ppTxProtoProc(base_address);
+                ESP_LOGI(TAG, "ppProcTxSetFrame");
+                ppProcTxSecFrame(base_address);
+                ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+                patched_lmacTxFrame(base_address, 0);
+
+                // esp_rom_delay_us(1000000);          
+
                 break;
             }
             case EXAMPLE_ESPNOW_RECV_CB:
@@ -458,18 +494,8 @@ static esp_err_t example_espnow_init(void)
     memcpy(send_param->dest_mac, s_example_broadcast_mac, ESP_NOW_ETH_ALEN);
     example_espnow_data_prepare(send_param);
 
-    // switch_channel(0x96c, 0);
 
-    // struct Packet packet;
-    // initialize_packet(&packet);
-    // uint32_t deadbeef_address = (uint32_t)&(packet.deadbeef);
-
-    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-    // initialize_substruct(substruct, deadbeef_address);
-
-    // patched_lmacTxFrame(&packet, 0);
-
-
+    ESP_LOGI(TAG, "Calling xTaskCreate");
     xTaskCreate(example_espnow_task, "example_espnow_task", 2048, send_param, 4, NULL);
 
     return ESP_OK;
@@ -525,7 +551,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xd8a080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xf20080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame

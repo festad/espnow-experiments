@@ -79,7 +79,7 @@ void initialize_packet(struct Packet* packet, uint32_t base_address) {
     packet->packet_content[7] = 0xaaaaaaaa;
     packet->packet_content[8] = 0xaaaaaaaa;
     packet->packet_content[9] = 0xaaaaaaaa;
-    packet->packet_content[10] = 0xaaaaaaaa;
+    // packet->packet_content[10] = 0xaaaaaaaa;
 
     packet->deadbeef = 0xDEADBEEF;
     packet->pad_word = 0;
@@ -1105,27 +1105,27 @@ void call_patched_lmacTxFrame(int param_1, int param_2) {
     // Set the frequency
     switch_channel(next_frequency, 0);
 
-    patched_lmacTxFrame(param_1, param_2);
+    return patched_lmacTxFrame(param_1, param_2);
     
-    uint32_t base_address = 0x4081ec28;
-    struct Packet* packet = (struct Packet*)base_address;
-    initialize_packet(packet, base_address);
-    uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+    // uint32_t base_address = 0x4081ec28;
+    // struct Packet* packet = (struct Packet*)base_address;
+    // initialize_packet(packet, base_address);
+    // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
 
-    struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-    initialize_substruct(substruct, deadbeef_address);
+    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    // initialize_substruct(substruct, deadbeef_address);
 
-    // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(packet, 0);
-    // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(packet, 0);
-    // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(packet, 0);
-    // esp_rom_delay_us(1000000);
-    patched_lmacTxFrame(packet, 0);
-    // esp_rom_delay_us(1000000);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
 
-    return;
+    // return;
 }
 
 // Insert cafebabe into the paylod (substitute for esp_fill_random)
