@@ -43,7 +43,7 @@ void initialize_packet(struct Packet* packet, uint32_t base_address) {
 
     // Initialize other fields based on offsets
     memset(packet->eight_words, 0, sizeof(packet->eight_words));
-    packet->eight_words[0]=0x00290018;
+    packet->eight_words[0]=0x00190020;
     packet->eight_words[1]=0x00010000;
     packet->eight_words[4]=0x00002000;
     // packet->eight_words[7]=0xc04a4138;
@@ -83,7 +83,7 @@ void initialize_packet(struct Packet* packet, uint32_t base_address) {
     packet->packet_content[11] = 0x3d2c4277;
     packet->packet_content[12] = 0xfebabeb5;
     packet->packet_content[13] = 0xfebabeca;
-    packet->packet_content[15] = 0xd05fc9ca;
+    packet->packet_content[14] = 0xd05fc9ca;
 
     packet->deadbeef = 0xDEADBEEF;
     packet->pad_word = 0x0004f1f1;

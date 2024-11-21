@@ -56,7 +56,7 @@ struct Packet {
     uint32_t eighteen_words[18];
     uint32_t length;
     uint32_t zero_word;
-    uint32_t packet_content[16];
+    uint32_t packet_content[15];
     uint32_t deadbeef;
     uint32_t pad_word;
     uint32_t pointer_to_4081ca14;

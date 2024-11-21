@@ -307,7 +307,7 @@ static void example_espnow_task(void *pvParameter)
                 switch_channel(0x96c, 0);
                 ESP_LOGI(TAG, "Channel changed to 0x96c");
 
-                uint32_t base_address = 0x4081ec28;
+                uint32_t base_address = 0x4081fc28;
                 struct Packet* packet = (struct Packet*)base_address;
                 initialize_packet(packet, base_address);
                 uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
@@ -551,7 +551,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xf70080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xf72080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
