@@ -43,7 +43,7 @@ void initialize_packet(struct Packet* packet, uint32_t base_address) {
 
     // Initialize other fields based on offsets
     memset(packet->eight_words, 0, sizeof(packet->eight_words));
-    packet->eight_words[0]=0x000a0020;
+    packet->eight_words[0]=0x00290018;
     packet->eight_words[1]=0x00010000;
     packet->eight_words[4]=0x00002000;
     // packet->eight_words[7]=0xc04a4138;
@@ -69,20 +69,24 @@ void initialize_packet(struct Packet* packet, uint32_t base_address) {
     packet->zero_word = 0;
 
     memset(packet->packet_content, 0, sizeof(packet->packet_content));
-    packet->packet_content[0] = 0xee9200d0;
+    packet->packet_content[0] = 0xee9200b0;
     packet->packet_content[1] = 0xffffffff;
     packet->packet_content[2] = 0x4c40ffff;
     packet->packet_content[3] = 0xd85751ca;
     packet->packet_content[4] = 0xffffffff;
     packet->packet_content[5] = 0x0000ffff;
-    packet->packet_content[6] = 0xaaaaaaaa;
-    packet->packet_content[7] = 0xaaaaaaaa;
-    packet->packet_content[8] = 0xaaaaaaaa;
-    packet->packet_content[9] = 0xaaaaaaaa;
-    // packet->packet_content[10] = 0xaaaaaaaa;
+    packet->packet_content[6] = 0x34fe187f;
+    packet->packet_content[7] = 0x7de59475;
+    packet->packet_content[8] = 0xfe1817dd;
+    packet->packet_content[9] = 0x00010434;
+    packet->packet_content[10] = 0x57000000;
+    packet->packet_content[11] = 0x3d2c4277;
+    packet->packet_content[12] = 0xfebabeb5;
+    packet->packet_content[13] = 0xfebabeca;
+    packet->packet_content[15] = 0xd05fc9ca;
 
     packet->deadbeef = 0xDEADBEEF;
-    packet->pad_word = 0;
+    packet->pad_word = 0x0004f1f1;
     packet->pointer_to_4081ca14 = 0x4081CA14;  // Fixed address
     packet->pointer_to_4081ca14_dup = 0x4081CA14;  // Fixed address
 }

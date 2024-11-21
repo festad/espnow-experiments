@@ -37,7 +37,7 @@
 
 #define MY_ESPNOW_IF 0
 
-#define CONFIG_ESPNOW_SEND_MY_LEN 230
+#define CONFIG_ESPNOW_SEND_MY_LEN 18
 
 static const char *TAG = "espnow_example";
 
@@ -551,7 +551,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xf20080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xf70080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
