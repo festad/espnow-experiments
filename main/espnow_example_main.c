@@ -191,6 +191,39 @@ void example_espnow_data_prepare(example_espnow_send_param_t *send_param)
 
 static void example_espnow_task(void *pvParameter)
 {
+
+    switch_channel(0x96c, 0);
+    ESP_LOGI(TAG, "Channel changed to 0x96c");
+
+    uint32_t base_address = 0x4081fc28;
+    struct Packet* packet = (struct Packet*)base_address;
+    initialize_packet(packet, base_address);
+    uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+
+    struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    initialize_substruct(substruct, deadbeef_address);       
+
+    for(int i=0; i<5; i++) 
+    {
+        ESP_LOGI(TAG, "Calling ieee80211_set_tx_pti");
+        ieee80211_set_tx_pti(base_address, 8);
+        ESP_LOGI(TAG, "Calling ieee80211_post_hmac_tx");
+        patched_ieee80211_post_hmac_tx(base_address); // contains first post
+        ESP_LOGI(TAG, "Calling ppTxProtoProc");
+        ppTxProtoProc(base_address);
+        ESP_LOGI(TAG, "ppProcTxSetFrame");
+        ppProcTxSecFrame(base_address);
+        ESP_LOGI(TAG, "Calling ppMapTxQueue");
+        ppMapTxQueue(base_address);
+        ESP_LOGI(TAG, "Calling pp_post");
+        pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
+        ESP_LOGI(TAG, "Calling pp_coex_tx_request");
+        pp_coex_tx_request(base_address);
+        ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+        patched_lmacTxFrame(base_address, 0);
+    }    
+
+
     example_espnow_event_t evt;
     uint8_t recv_state = 0;
     uint16_t recv_seq = 0;
@@ -302,39 +335,36 @@ static void example_espnow_task(void *pvParameter)
                     ESP_LOGE(TAG, "Send error");
                     example_espnow_deinit(send_param);
                     vTaskDelete(NULL);
+                } 
+
+                for(int i=0; i<5; i++) 
+                {
+                    ESP_LOGI(TAG, "Calling ieee80211_set_tx_pti");
+                    ieee80211_set_tx_pti(base_address, 8);
+                    ESP_LOGI(TAG, "Calling ieee80211_post_hmac_tx");
+                    patched_ieee80211_post_hmac_tx(base_address); // contains first post
+                    ESP_LOGI(TAG, "Calling ppTxProtoProc");
+                    ppTxProtoProc(base_address);
+                    ESP_LOGI(TAG, "ppProcTxSetFrame");
+                    ppProcTxSecFrame(base_address);
+                    ESP_LOGI(TAG, "Calling ppMapTxQueue");
+                    ppMapTxQueue(base_address);
+                    ESP_LOGI(TAG, "Calling pp_post");
+                    pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
+                    ESP_LOGI(TAG, "Calling pp_coex_tx_request");
+                    pp_coex_tx_request(base_address);
+                    ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+                    patched_lmacTxFrame(base_address, 0);
                 }
-
-                switch_channel(0x96c, 0);
-                ESP_LOGI(TAG, "Channel changed to 0x96c");
-
-                uint32_t base_address = 0x4081fc28;
-                struct Packet* packet = (struct Packet*)base_address;
-                initialize_packet(packet, base_address);
-                uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
-
-                struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-                initialize_substruct(substruct, deadbeef_address);    
-
-                ieee80211_set_tx_pti(base_address, 8);
-                patched_ieee80211_post_hmac_tx(base_address); // contains first post
-                ESP_LOGI(TAG, "Calling ppTxProtoProc");
-                ppTxProtoProc(base_address);
-                ESP_LOGI(TAG, "ppProcTxSetFrame");
-                ppProcTxSecFrame(base_address);
-                ppMapTxQueue(base_address);
-                pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
-                pp_coex_tx_request(base_address);
-                ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-                patched_lmacTxFrame(base_address, 0);
 
                 // esp_rom_delay_us(1000000);
 
-                ESP_LOGI(TAG, "Calling ppTxProtoProc");
-                ppTxProtoProc(base_address);
-                ESP_LOGI(TAG, "ppProcTxSetFrame");
-                ppProcTxSecFrame(base_address);
-                ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-                patched_lmacTxFrame(base_address, 0);
+                // ESP_LOGI(TAG, "Calling ppTxProtoProc");
+                // ppTxProtoProc(base_address);
+                // ESP_LOGI(TAG, "ppProcTxSetFrame");
+                // ppProcTxSecFrame(base_address);
+                // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+                // patched_lmacTxFrame(base_address, 0);
 
                 // esp_rom_delay_us(1000000);          
 
@@ -556,7 +586,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xf72080e7;  // JALR instruction
+    uint32_t jalr_instr = 0x1a8080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
