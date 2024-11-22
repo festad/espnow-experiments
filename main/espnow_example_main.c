@@ -315,10 +315,15 @@ static void example_espnow_task(void *pvParameter)
                 struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
                 initialize_substruct(substruct, deadbeef_address);    
 
+                ieee80211_set_tx_pti(base_address, 8);
+                patched_ieee80211_post_hmac_tx(base_address); // contains first post
                 ESP_LOGI(TAG, "Calling ppTxProtoProc");
                 ppTxProtoProc(base_address);
                 ESP_LOGI(TAG, "ppProcTxSetFrame");
                 ppProcTxSecFrame(base_address);
+                ppMapTxQueue(base_address);
+                pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
+                pp_coex_tx_request(base_address);
                 ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
                 patched_lmacTxFrame(base_address, 0);
 

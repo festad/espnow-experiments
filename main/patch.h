@@ -184,7 +184,8 @@ void esp_rom_delay_us(long unsigned int param_1);
 int ppTxPkt(uint32_t ptr_to_packet_info, int param_2);
 void ppTxProtoProc(uint32_t ptr_to_packet_info);
 int ppProcTxSecFrame(uint32_t ptr_to_packet_info);
-
+void pp_coex_tx_request(uint32_t ptr_to_packet_info);
+int ppMapTxQueue(uint32_t ptr_to_packet_info);
 
 
 // END CLOSED SOURCE FUNCTIONS
