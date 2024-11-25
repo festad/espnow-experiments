@@ -205,20 +205,20 @@ static void example_espnow_task(void *pvParameter)
 
     for(int i=0; i<5; i++) 
     {
-        ESP_LOGI(TAG, "Calling ieee80211_set_tx_pti");
-        ieee80211_set_tx_pti(base_address, 8);
+        // ESP_LOGI(TAG, "Calling ieee80211_set_tx_pti");
+        // ieee80211_set_tx_pti(base_address, 8);
         ESP_LOGI(TAG, "Calling ieee80211_post_hmac_tx");
         patched_ieee80211_post_hmac_tx(base_address); // contains first post
-        ESP_LOGI(TAG, "Calling ppTxProtoProc");
-        ppTxProtoProc(base_address);
-        ESP_LOGI(TAG, "ppProcTxSetFrame");
-        ppProcTxSecFrame(base_address);
-        ESP_LOGI(TAG, "Calling ppMapTxQueue");
-        ppMapTxQueue(base_address);
-        ESP_LOGI(TAG, "Calling pp_post");
-        pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
-        ESP_LOGI(TAG, "Calling pp_coex_tx_request");
-        pp_coex_tx_request(base_address);
+        // ESP_LOGI(TAG, "Calling ppTxProtoProc");
+        // ppTxProtoProc(base_address);
+        // ESP_LOGI(TAG, "ppProcTxSetFrame");
+        // ppProcTxSecFrame(base_address);
+        // ESP_LOGI(TAG, "Calling ppMapTxQueue");
+        // ppMapTxQueue(base_address);
+        // ESP_LOGI(TAG, "Calling pp_post");
+        // pp_post((*(uint32_t *)(*(int *)(base_address + 0x34) + 4) >> 4) & 0xf, 0); // second post
+        // ESP_LOGI(TAG, "Calling pp_coex_tx_request");
+        // pp_coex_tx_request(base_address);
         ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
         patched_lmacTxFrame(base_address, 0);
     }    
@@ -639,7 +639,7 @@ void app_main(void)
     ESP_ERROR_CHECK( ret );
 
     // Get ready to call the patched version of lmacTxFrame
-    edit_return_to_call_patched_lmacTxFrame();
+    // edit_return_to_call_patched_lmacTxFrame();
 
     // uint8_t hw_mac[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     // hw_macchanger(hw_mac);
