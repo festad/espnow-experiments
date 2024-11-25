@@ -315,19 +315,15 @@ static void example_espnow_task(void *pvParameter)
                 struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
                 initialize_substruct(substruct, deadbeef_address);    
 
-                ESP_LOGI(TAG, "Calling ppTxProtoProc");
-                ppTxProtoProc(base_address);
-                ESP_LOGI(TAG, "ppProcTxSetFrame");
-                ppProcTxSecFrame(base_address);
+                ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+                patched_ieee80211_post_hmac_tx(base_address);
                 ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
                 patched_lmacTxFrame(base_address, 0);
 
                 // esp_rom_delay_us(1000000);
 
-                ESP_LOGI(TAG, "Calling ppTxProtoProc");
-                ppTxProtoProc(base_address);
-                ESP_LOGI(TAG, "ppProcTxSetFrame");
-                ppProcTxSecFrame(base_address);
+                ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+                patched_ieee80211_post_hmac_tx(base_address);
                 ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
                 patched_lmacTxFrame(base_address, 0);
 
@@ -551,7 +547,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xf72080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xf02080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
