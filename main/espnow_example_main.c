@@ -295,20 +295,22 @@ static void example_espnow_task(void *pvParameter)
             free(substruct);
         }
 
-        ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-        patched_lmacTxFrame((uint32_t)packet, 0);
+        // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+        // patched_lmacTxFrame((uint32_t)packet, 0);
 
         ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
 
         // ESP_LOGI(TAG, "Calling ppProcTxDone");
         // ppProcTxDone();
 
-        free(substruct);
         ESP_LOGI(TAG, "Freed substruct");
-        free(packet);
-        ESP_LOGI(TAG, "Freed packet");
+        free(substruct);
+        // ESP_LOGI(TAG, "Freed packet");
+        // free(packet);
 
         ESP_LOGI(TAG, "Finished sending packet %d", i);
+
+        vTaskDelay(CONFIG_ESPNOW_SEND_DELAY/portTICK_PERIOD_MS);
     }
 
 
@@ -617,7 +619,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0x556080e7;  // JALR instruction
+    uint32_t jalr_instr = 0xfea080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
@@ -670,7 +672,7 @@ void app_main(void)
     ESP_ERROR_CHECK( ret );
 
     // Get ready to call the patched version of lmacTxFrame
-    // edit_return_to_call_patched_lmacTxFrame();
+    edit_return_to_call_patched_lmacTxFrame();
 
     // uint8_t hw_mac[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     // hw_macchanger(hw_mac);
