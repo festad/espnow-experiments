@@ -186,6 +186,7 @@ void ppTxProtoProc(uint32_t ptr_to_packet_info);
 int ppProcTxSecFrame(uint32_t ptr_to_packet_info);
 void pp_coex_tx_request(uint32_t ptr_to_packet_info);
 int ppMapTxQueue(uint32_t ptr_to_packet_info);
+void ppProcTxDone(void);
 
 
 // END CLOSED SOURCE FUNCTIONS
