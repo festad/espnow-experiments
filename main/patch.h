@@ -227,4 +227,6 @@ void call_patched_lmacTxFrame(int param_1, int param_2);
 // Dummy function to prevent optimization
 void force_include_symbols();
 
+void send_sample_packets(bool patchedtx);
+
 #endif // PATCH_H

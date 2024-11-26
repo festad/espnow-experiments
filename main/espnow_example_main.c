@@ -244,75 +244,7 @@ static void example_espnow_task(void *pvParameter)
     // uint8_t hw_mac[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     // hw_macchanger(hw_mac);
 
-
-
-    switch_channel(0x96c, 0);
-    ESP_LOGI(TAG, "Channel changed to 0x96c");
-
-    // uint32_t base_address = 0x4081fc28;
-    // struct Packet* packet = (struct Packet*)base_address;
-    // initialize_packet(packet, base_address);
-    // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
-
-    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-    // initialize_substruct(substruct, deadbeef_address);    
-
-    for(int i=0; i<10; i++)
-    {
-        ESP_LOGI(TAG, "Sending packet %d", i);
-        // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-        // patched_ieee80211_post_hmac_tx(base_address);
-        // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-        // patched_lmacTxFrame(base_address, 0);
-        // ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
-        // ppProcTxDone();
-
-        struct Packet* packet = (struct Packet*)malloc(sizeof(struct Packet));
-        if (packet == NULL) 
-        {
-            ESP_LOGE(TAG, "Failed to allocate memory for packet");
-            break;
-        }
-        uint32_t base_address = (uint32_t)packet;
-        initialize_packet(packet, base_address);
-        uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
-
-        struct SubStruct* substruct = (struct SubStruct*)malloc(sizeof(struct SubStruct));
-        if(substruct == NULL)
-        {
-            ESP_LOGE(TAG, "Failed to allocate memory for substruct");
-            free(packet);
-            break;
-        }
-        initialize_substruct(substruct, deadbeef_address);
-
-        ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-        int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
-        if(ret != 0)
-        {
-            ESP_LOGE(TAG, "Failed to post packet");
-            free(packet);
-            free(substruct);
-        }
-
-        // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-        // patched_lmacTxFrame((uint32_t)packet, 0);
-
-        ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
-
-        // ESP_LOGI(TAG, "Calling ppProcTxDone");
-        // ppProcTxDone();
-
-        ESP_LOGI(TAG, "Freed substruct");
-        free(substruct);
-        // ESP_LOGI(TAG, "Freed packet");
-        // free(packet);
-
-        ESP_LOGI(TAG, "Finished sending packet %d", i);
-
-        vTaskDelay(CONFIG_ESPNOW_SEND_DELAY/portTICK_PERIOD_MS);
-    }
-
+    send_sample_packets(false);
 
     ESP_LOGI(TAG, "Start sending broadcast data");
 
@@ -509,6 +441,10 @@ static esp_err_t example_espnow_init(void)
 
     /* Initialize ESPNOW and register sending and receiving callback function. */
     ESP_ERROR_CHECK( esp_now_init() );
+
+    send_sample_packets(false);
+    ESP_LOGI(TAG, "Just after esp_now_init");
+
     ESP_ERROR_CHECK( esp_now_register_send_cb(example_espnow_send_cb) );
     ESP_ERROR_CHECK( esp_now_register_recv_cb(example_espnow_recv_cb) );
 #if CONFIG_ESPNOW_ENABLE_POWER_SAVE
@@ -615,11 +551,85 @@ void test_memory_change()
 }
 
 
+void send_sample_packets(bool patchedtx)
+{
+    switch_channel(0x96c, 0);
+    ESP_LOGI(TAG, "Channel changed to 0x96c");
+
+    // uint32_t base_address = 0x4081fc28;
+    // struct Packet* packet = (struct Packet*)base_address;
+    // initialize_packet(packet, base_address);
+    // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+
+    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    // initialize_substruct(substruct, deadbeef_address);    
+
+    for(int i=0; i<6; i++)
+    {
+        ESP_LOGI(TAG, "Sending packet %d", i);
+        // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+        // patched_ieee80211_post_hmac_tx(base_address);
+        // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+        // patched_lmacTxFrame(base_address, 0);
+        // ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
+        // ppProcTxDone();
+
+        struct Packet* packet = (struct Packet*)malloc(sizeof(struct Packet));
+        if (packet == NULL) 
+        {
+            ESP_LOGE(TAG, "Failed to allocate memory for packet");
+            break;
+        }
+        uint32_t base_address = (uint32_t)packet;
+        initialize_packet(packet, base_address);
+        uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+
+        struct SubStruct* substruct = (struct SubStruct*)malloc(sizeof(struct SubStruct));
+        if(substruct == NULL)
+        {
+            ESP_LOGE(TAG, "Failed to allocate memory for substruct");
+            free(packet);
+            break;
+        }
+        initialize_substruct(substruct, deadbeef_address);
+
+        ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+        int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
+        if(ret != 0)
+        {
+            ESP_LOGE(TAG, "Failed to post packet");
+            free(packet);
+            free(substruct);
+        }
+
+        if(patchedtx)
+        {
+            ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
+            patched_lmacTxFrame((uint32_t)packet, 0);
+        }
+
+        ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
+
+        // ESP_LOGI(TAG, "Calling ppProcTxDone");
+        // ppProcTxDone();
+
+        ESP_LOGI(TAG, "Freed substruct");
+        free(substruct);
+        // ESP_LOGI(TAG, "Freed packet");
+        // free(packet);
+
+        ESP_LOGI(TAG, "Finished sending packet %d", i);
+
+        vTaskDelay(CONFIG_ESPNOW_SEND_DELAY/portTICK_PERIOD_MS);
+    }    
+}
+
+
 void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0xfea080e7;  // JALR instruction
+    uint32_t jalr_instr = 0x08e080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
@@ -694,6 +704,10 @@ void app_main(void)
     // test_memory_change();
 
     example_wifi_init();
+
+    // send_sample_packets(false);
+    // ESP_LOGI(TAG, "Before espnow init");
+    
     example_espnow_init();
 
 

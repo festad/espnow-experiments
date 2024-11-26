@@ -448,6 +448,9 @@ void patched_lmacTxFrame(int param_1, int param_2)
     uint32_t uVar8;
     int *piVar9;
 
+    // param_1 is the base address of the packet structure
+    ESP_LOGI(TAG, "patched_lmacTxFrame: address: 0x%"PRIx32"", (uint32_t)param_1);
+
     // gp assumed to be set somewhere else, not used in this scope
     piVar9 = (int *)(param_2 * 0x34 + (char *)our_instances_ptr); // Calculating the instance structure
 
