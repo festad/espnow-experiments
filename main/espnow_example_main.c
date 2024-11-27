@@ -439,6 +439,9 @@ static esp_err_t example_espnow_init(void)
         return ESP_FAIL;
     }
 
+    // send_sample_packets(false);
+    // ESP_LOGI(TAG, "Just before esp_now_init");
+
     /* Initialize ESPNOW and register sending and receiving callback function. */
     ESP_ERROR_CHECK( esp_now_init() );
 
@@ -562,7 +565,7 @@ void send_sample_packets(bool patchedtx)
     // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
 
     // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-    // initialize_substruct(substruct, deadbeef_address);    
+    // initialize_substruct(substruct, deadbeef_address);
 
     for(int i=0; i<6; i++)
     {
