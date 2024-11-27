@@ -567,7 +567,7 @@ void send_sample_packets(bool patchedtx)
     // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
     // initialize_substruct(substruct, deadbeef_address);
 
-    for(int i=0; i<6; i++)
+    for(int i=0; i<10; i++)
     {
         ESP_LOGI(TAG, "Sending packet %d", i);
         // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
@@ -594,19 +594,22 @@ void send_sample_packets(bool patchedtx)
             free(packet);
             break;
         }
+
         initialize_substruct(substruct, deadbeef_address);
 
-        ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-        int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
-        if(ret != 0)
-        {
-            ESP_LOGE(TAG, "Failed to post packet");
-            free(packet);
-            free(substruct);
-        }
+        // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+        // int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
+        // if(ret != 0)
+        // {
+        //     ESP_LOGE(TAG, "Failed to post packet");
+        //     free(packet);
+        //     free(substruct);
+        // }
 
         if(patchedtx)
         {
+            ESP_LOGI(TAG, "Calling pp_coex_tx_request");
+            pp_coex_tx_request((uint32_t)packet);
             ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
             patched_lmacTxFrame((uint32_t)packet, 0);
         }
@@ -618,8 +621,8 @@ void send_sample_packets(bool patchedtx)
 
         ESP_LOGI(TAG, "Freed substruct");
         free(substruct);
-        // ESP_LOGI(TAG, "Freed packet");
-        // free(packet);
+        ESP_LOGI(TAG, "Freed packet");
+        free(packet);
 
         ESP_LOGI(TAG, "Finished sending packet %d", i);
 
