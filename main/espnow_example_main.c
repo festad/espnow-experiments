@@ -708,10 +708,12 @@ void app_main(void)
 
     example_wifi_init();
 
-    // send_sample_packets(false);
-    // ESP_LOGI(TAG, "Before espnow init");
+    ic_delete_wifi_task();
+
+    send_sample_packets(true);
+    ESP_LOGI(TAG, "Before espnow init");
     
-    example_espnow_init();
+    // example_espnow_init();
 
 
 }

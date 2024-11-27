@@ -188,6 +188,7 @@ void pp_coex_tx_request(uint32_t ptr_to_packet_info);
 int ppMapTxQueue(uint32_t ptr_to_packet_info);
 void ppProcTxDone(void);
 
+uint32_t ic_delete_wifi_task(void);
 
 // END CLOSED SOURCE FUNCTIONS
 
