@@ -244,7 +244,7 @@ static void example_espnow_task(void *pvParameter)
     // uint8_t hw_mac[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     // hw_macchanger(hw_mac);
 
-    send_sample_packets(false);
+    send_sample_packets(false, false, true, false);
 
     ESP_LOGI(TAG, "Start sending broadcast data");
 
@@ -439,14 +439,20 @@ static esp_err_t example_espnow_init(void)
         return ESP_FAIL;
     }
 
-    // send_sample_packets(false);
-    // ESP_LOGI(TAG, "Just before esp_now_init");
+    // ESP_LOGI(TAG, "Calling before esp_now_init");
+    // send_sample_packets(false, false, true);
 
     /* Initialize ESPNOW and register sending and receiving callback function. */
     ESP_ERROR_CHECK( esp_now_init() );
 
-    send_sample_packets(false);
-    ESP_LOGI(TAG, "Just after esp_now_init");
+    ESP_LOGI(TAG, "Calling after esp_now_init");
+    send_sample_packets(false, true, true, false);
+
+    ESP_LOGI(TAG, "Stopping the wifi thread");
+    ic_delete_wifi_task();
+
+    ESP_LOGI(TAG, "Calling after ic_delete_wifi_task");
+    send_sample_packets(true, false, false, true);
 
     ESP_ERROR_CHECK( esp_now_register_send_cb(example_espnow_send_cb) );
     ESP_ERROR_CHECK( esp_now_register_recv_cb(example_espnow_recv_cb) );
@@ -554,7 +560,7 @@ void test_memory_change()
 }
 
 
-void send_sample_packets(bool patchedtx)
+void send_sample_packets(bool patchedtx, bool disable_lp_feature, bool posthmac, bool coexrequest)
 {
     switch_channel(0x96c, 0);
     ESP_LOGI(TAG, "Channel changed to 0x96c");
@@ -597,14 +603,24 @@ void send_sample_packets(bool patchedtx)
 
         initialize_substruct(substruct, deadbeef_address);
 
-        // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-        // int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
-        // if(ret != 0)
-        // {
-        //     ESP_LOGE(TAG, "Failed to post packet");
-        //     free(packet);
-        //     free(substruct);
-        // }
+        if(posthmac)
+        {
+            ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
+            int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
+            if(ret != 0)
+            {
+                ESP_LOGE(TAG, "Failed to post packet");
+                free(packet);
+                free(substruct);
+
+            }
+        }
+
+        if(coexrequest)
+        {
+            ESP_LOGI(TAG, "Calling pp_coex_tx_request");
+            pp_coex_tx_request((uint32_t)packet);
+        }
 
         if(patchedtx)
         {
@@ -614,15 +630,19 @@ void send_sample_packets(bool patchedtx)
             patched_lmacTxFrame((uint32_t)packet, 0);
         }
 
-        ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
+        if(disable_lp_feature && i==0)
+        {
+            ESP_LOGI(TAG, "Calling pm_disconnected_stop");
+            pm_disconnected_stop();
+        }
 
         // ESP_LOGI(TAG, "Calling ppProcTxDone");
         // ppProcTxDone();
 
-        ESP_LOGI(TAG, "Freed substruct");
-        free(substruct);
-        ESP_LOGI(TAG, "Freed packet");
-        free(packet);
+        // ESP_LOGI(TAG, "Freed substruct");
+        // free(substruct);
+        // ESP_LOGI(TAG, "Freed packet");
+        // free(packet);
 
         ESP_LOGI(TAG, "Finished sending packet %d", i);
 
@@ -635,7 +655,7 @@ void edit_return_to_call_patched_lmacTxFrame()
 {
     // lui+jalr to call_patched_lmacTxFrame
     uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
-    uint32_t jalr_instr = 0x08e080e7;  // JALR instruction
+    uint32_t jalr_instr = 0x152080e7;  // JALR instruction
 
     // The three functions that call lmacTxFrame
     // and need to be modified to call call_patched_lmacTxFrame
@@ -711,12 +731,16 @@ void app_main(void)
 
     example_wifi_init();
 
-    ic_delete_wifi_task();
+    // send_sample_packets(false, true, true);
 
-    send_sample_packets(true);
-    ESP_LOGI(TAG, "Before espnow init");
+    // ic_delete_wifi_task();
+
+    // send_sample_packets(true, false, false);
+    // ESP_LOGI(TAG, "Before espnow init");
     
-    // example_espnow_init();
+    example_espnow_init();
 
+    // ESP_LOGI(TAG, "Calling call_patched_lmacTxFrame");
+    // call_patched_lmacTxFrame(0x4081fc28, 0);
 
 }

@@ -190,6 +190,8 @@ void ppProcTxDone(void);
 
 uint32_t ic_delete_wifi_task(void);
 
+void pm_disconnected_stop(void);
+
 // END CLOSED SOURCE FUNCTIONS
 
 // PATCHED FUNCTIONS
@@ -228,6 +230,6 @@ void call_patched_lmacTxFrame(int param_1, int param_2);
 // Dummy function to prevent optimization
 void force_include_symbols();
 
-void send_sample_packets(bool patchedtx);
+void send_sample_packets(bool patchedtx, bool disable_lp_feature, bool posthmac, bool coexrequest);
 
 #endif // PATCH_H
