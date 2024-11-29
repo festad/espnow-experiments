@@ -2,6 +2,7 @@
 #define PATCH_H
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <time.h>
 #include <string.h>
 #include <assert.h>
@@ -18,6 +19,53 @@
 #include "esp_now.h"
 #include "esp_crc.h"
 #include "espnow_example.h"
+
+
+#include <stdint.h>
+
+// Structure for the "mysterious" structure at 0x4081ca14
+struct SubStruct {
+    uint32_t field1;             // 0x00
+    uint32_t field2;             // 0x04
+    uint32_t self_pointer;       // 0x08 (pointer to this structure itself)
+    uint32_t final_pointer;      // 0x0C (pointer to the "final" 0xdeadbeef in the main struct)
+    uint32_t reserved[32];       // 0x10 (padding to align offsets for this example)
+};
+
+// Main structure for the packet
+struct Packet {
+    uint32_t header1;
+    uint32_t pointer_to_3c;
+    uint32_t pointer_to_3c_dup;
+    uint32_t one_value;
+    uint32_t pointer_to_90;
+    uint32_t eight_words[8];
+    uint32_t pointer_to_48;
+    uint32_t empty_word_1;
+    uint32_t mysterious_value_1;
+    uint32_t pointer_to_b0;
+    uint32_t empty_word_2;
+    uint32_t mysterious_value_6412;
+    uint32_t mysterious_value_7;
+    uint32_t empty_word_3;
+    uint32_t wifi_protocol;
+    uint32_t mysterious_value_2;
+    uint32_t mysterious_value_80;
+    uint32_t maybe_timestamp;
+    uint32_t pointer_to_4081621c;
+    uint32_t eighteen_words[18];
+    uint32_t length;
+    uint32_t zero_word;
+    uint32_t packet_content[15];
+    uint32_t deadbeef;
+    uint32_t pad_word;
+    uint32_t pointer_to_4081ca14;
+    uint32_t pointer_to_4081ca14_dup;
+};
+
+void initialize_packet(struct Packet* packet, uint32_t base_address);
+void initialize_substruct(struct SubStruct* substruct, uint32_t deadbeef_address);
+
 
 extern int counter_patched_lmacTxFrame;
 extern uint32_t g_espnow_lock;
@@ -94,6 +142,7 @@ bool is_use_muedca(uint32_t param_1);
 
 void *memcpy(void *param_1, const void *param_2, size_t param_3);
 // at address 0x400004ac
+void *memset(void *param_1, int param_2, size_t param_3);
 
 void *wifi_zalloc_wrapper(size_t size);
 int wifi_api_lock(void);
@@ -132,6 +181,16 @@ void set_channel_rfpll_freq(uint32_t frequency, int data_from_phy_rom_p79, int p
 
 void esp_rom_delay_us(long unsigned int param_1);
 
+int ppTxPkt(uint32_t ptr_to_packet_info, int param_2);
+void ppTxProtoProc(uint32_t ptr_to_packet_info);
+int ppProcTxSecFrame(uint32_t ptr_to_packet_info);
+void pp_coex_tx_request(uint32_t ptr_to_packet_info);
+int ppMapTxQueue(uint32_t ptr_to_packet_info);
+void ppProcTxDone(void);
+
+uint32_t ic_delete_wifi_task(void);
+
+void pm_disconnected_stop(void);
 
 // END CLOSED SOURCE FUNCTIONS
 
@@ -170,5 +229,7 @@ void call_patched_lmacTxFrame(int param_1, int param_2);
 
 // Dummy function to prevent optimization
 void force_include_symbols();
+
+void send_sample_packets(bool patchedtx, bool disable_lp_feature, bool posthmac, bool coexrequest);
 
 #endif // PATCH_H

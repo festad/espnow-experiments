@@ -31,6 +31,76 @@ static int n_frequencies = 21;
 // IMPLEMENTATION OF PATCHED FUNCTIONS
 
 
+// Function to initialize the Packet structure
+void initialize_packet(struct Packet* packet, uint32_t base_address) {
+    ESP_LOGI(TAG, "base_address 0x%"PRIx32"", base_address);
+    ESP_LOGI(TAG, "packet 0x%"PRIx32"", (uint32_t)packet);
+    packet->header1 = 0;
+    packet->pointer_to_3c = base_address + 0x3C;
+    packet->pointer_to_3c_dup = base_address + 0x3C;
+    packet->one_value = 1;
+    packet->pointer_to_90 = base_address + 0x90;
+
+    // Initialize other fields based on offsets
+    memset(packet->eight_words, 0, sizeof(packet->eight_words));
+    packet->eight_words[0]=0x00190020;
+    packet->eight_words[1]=0x00010000;
+    packet->eight_words[4]=0x00002000;
+    // packet->eight_words[7]=0xc04a4138;
+    packet->pointer_to_48 = base_address + 0x48;
+    packet->empty_word_1 = 0;
+    packet->mysterious_value_1 = 0xc0464138;  // Example value
+    packet->pointer_to_b0 = base_address + 0xB0;
+    packet->empty_word_2 = 0;
+    packet->mysterious_value_6412 = 0x00006412;
+    packet->mysterious_value_7 = 7;
+    packet->empty_word_3 = 0;
+    packet->wifi_protocol = 0x00000017;  // Example protocol
+    packet->mysterious_value_2 = 0x4002D44C; // Example value
+    packet->mysterious_value_80 = 0x80;
+    packet->maybe_timestamp = 0x1A8F0BF8;  // Example timestamp
+    packet->pointer_to_4081621c = 0x4081621C;
+
+    memset(packet->eighteen_words, 0, sizeof(packet->eighteen_words));
+    packet->eighteen_words[0] = 0x00010001;
+    packet->eighteen_words[4] = 0x00040000;
+
+    packet->length = 0x45;//40*4=0xa0
+    packet->zero_word = 0;
+
+    memset(packet->packet_content, 0, sizeof(packet->packet_content));
+    packet->packet_content[0] = 0xee9200b0;
+    packet->packet_content[1] = 0xffffffff;
+    packet->packet_content[2] = 0x4c40ffff;
+    packet->packet_content[3] = 0xd85751ca;
+    packet->packet_content[4] = 0xffffffff;
+    packet->packet_content[5] = 0x0000ffff;
+    packet->packet_content[6] = 0x34fe187f;
+    packet->packet_content[7] = 0x7de59475;
+    packet->packet_content[8] = 0xfe1817dd;
+    packet->packet_content[9] = 0x00010434;
+    packet->packet_content[10] = 0x57000000;
+    packet->packet_content[11] = 0x3d2c4277;
+    packet->packet_content[12] = 0xfebabeb5;
+    packet->packet_content[13] = 0xfebabeca;
+    packet->packet_content[14] = 0xd05fc9ca;
+
+    packet->deadbeef = 0xDEADBEEF;
+    packet->pad_word = 0x0004f1f1;
+    packet->pointer_to_4081ca14 = 0x4081CA14;  // Fixed address
+    packet->pointer_to_4081ca14_dup = 0x4081CA14;  // Fixed address
+}
+
+// Function to initialize the SubStruct
+void initialize_substruct(struct SubStruct* substruct, uint32_t deadbeef_address) {
+    substruct->field1 = 0xB6F35AFE;  // Example value
+    substruct->field2 = 0xA760886D;  // Example value
+    substruct->self_pointer = 0x4081CA14;  // Pointer to itself
+    substruct->final_pointer = deadbeef_address; // Pointer to the address of "deadbeef"
+    memset(substruct->reserved, 0, sizeof(substruct->reserved)); // Clear the padding
+}
+
+
 void switch_channel(uint32_t frequency, uint32_t param_2)
 {
     ESP_LOGI(TAG, "Before switching channel");
@@ -377,6 +447,9 @@ void patched_lmacTxFrame(int param_1, int param_2)
     int iVar7;
     uint32_t uVar8;
     int *piVar9;
+
+    // param_1 is the base address of the packet structure
+    ESP_LOGI(TAG, "patched_lmacTxFrame: address: 0x%"PRIx32"", (uint32_t)param_1);
 
     // gp assumed to be set somewhere else, not used in this scope
     piVar9 = (int *)(param_2 * 0x34 + (char *)our_instances_ptr); // Calculating the instance structure
@@ -755,7 +828,7 @@ int patched_ieee80211_send_action_vendor_spec(uint32_t param_1, uint8_t *param_2
             *(uint16_t *)(iVar11 + 0x24) = *(uint16_t *)(iVar11 + 0x24) | 0x2000;
             // *puVar15 = ((*puVar15 >> 0xe & 0x3fff) + 8 & 0x3fff) << 0xe | *puVar15 & 0xf0003fff;
             *(uint32_t *)((uint8_t *)puVar15 + 0x0) = 
-                    ( ( ( ( (*(uint32_t *)((uint8_t *)puVar15+0x0) >> 0xe) & 0x3fff) + 8) & 0x3fff)  << 0xe) | 
+                    (( (*(uint32_t *)((uint8_t *)puVar15+0x0) >> 0xe) & 0x3fff) + (8 & 0x3fff) ) << 0xe | 
                     (*(uint32_t *)((uint8_t *)puVar15 + 0x0) & 0xf0003fff);
         }
         *(uint8_t *)(*(int *)(iVar11 + 0x34) + 0x32) = *(uint8_t *)(*(int *)(iVar11 + 0x34) + 0x32) | 4;
@@ -820,8 +893,8 @@ int patched_ieee80211_send_action_vendor_spec(uint32_t param_1, uint8_t *param_2
         puVar4 = (uint8_t *)g_wifi_nvs;
         puVar15 = *(uint32_t **)(iVar11 + 0x34);
         // MODIFYING THE VALUE OF THE RATE
-        *(uint8_t *)((uint8_t *)puVar15 + 0xc) = uVar8;
-        // *(uint8_t *)((uint8_t *)puVar15 + 0xc) = (uint8_t)0x17;
+        // *(uint8_t *)((uint8_t *)puVar15 + 0xc) = uVar8;
+        *(uint8_t *)((uint8_t *)puVar15 + 0xc) = (uint8_t)0x17;
         uVar12 = ((uint8_t *)puVar15 + 0x10);
 
         if (param_1 == 0)
@@ -1038,7 +1111,28 @@ void call_patched_lmacTxFrame(int param_1, int param_2) {
     ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
     // Set the frequency
     switch_channel(next_frequency, 0);
+
     return patched_lmacTxFrame(param_1, param_2);
+    
+    // uint32_t base_address = 0x4081ec28;
+    // struct Packet* packet = (struct Packet*)base_address;
+    // initialize_packet(packet, base_address);
+    // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
+
+    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
+    // initialize_substruct(substruct, deadbeef_address);
+
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+    // patched_lmacTxFrame(packet, 0);
+    // // esp_rom_delay_us(1000000);
+
+    // return;
 }
 
 // Insert cafebabe into the paylod (substitute for esp_fill_random)
