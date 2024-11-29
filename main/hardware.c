@@ -69,6 +69,7 @@ void transmit_one(uint8_t index) {
 	beacon_raw[38] = 'a' + (index % 26);
 	// owner 1, eof 1, unknown 6, lenght 12, size 12
 	uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (buffer_len << 12) | size_len);
+	// Now I have to change this formula according to the rule of length - 7
 	uint32_t dma_item[3] = {dma_item_first, ((uint32_t) beacon_raw), 0};
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
 	write_register(MAC_TX_PLCP0_BASE,
