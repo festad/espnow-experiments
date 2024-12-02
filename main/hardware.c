@@ -11,6 +11,17 @@
 
 static const char* TAG = "hardware.c";
 
+// DISCLAIMER
+// This code is all work of the ZEUS WPI research group and Jasper Devreker,
+// my contribution level is practically zero, 
+// I just tried to adapt it to work on an esp32c6. 
+// This code mostly look like their first commit on the 
+// The first article of the series they wrote on the subject is here:
+// https://zeus.ugent.be/blog/23-24/open-source-esp32-wifi-mac/
+// Their code is here:
+// https://github.com/esp32-open-mac/esp32-open-mac/
+
+
 
 // for esp32 -> 0x3ff73d20
 // #define WIFI_DMA_OUTLINK _MMIO_ADDR(0x600a4d6c)
@@ -66,10 +77,13 @@ inline uint32_t read_register(uint32_t address) {
 
 
 void transmit_one(uint8_t index) {
-	uint32_t buffer_len = sizeof(beacon_raw); // this includes the FCS
-	uint32_t size_len = buffer_len + 32;
-	uint32_t len_m_7 = buffer_len - 7;
-	uint32_t len_m_15 = 
+	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
+	// uint32_t size_len = buffer_len + 32;
+	// The length of the payload is in the first 4 bytes of the packet
+	uint32_t payload_length = *((uint32_t*) beacon_raw);
+	uint32_t packet_length = payload_length + 15;
+	uint32_t len_m_7 = packet_length - 7;
+	uint32_t len_m_15 = packet_length - 15; // = payload_length
 	// change the ssid, so that we're sure we're transmitting different packets
 	beacon_raw[38] = 'a' + (index % 26);
 	// owner 1, eof 1, unknown 6, lenght 12, size 12
@@ -77,15 +91,15 @@ void transmit_one(uint8_t index) {
 	// Now I have to change this formula according to the rule of length - 7
 	// I want 
 	// 1100 0000 0001 0101 0100 0000 0000 0000
-	// uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (len_m_7 << 20));
-	uint32_t dma_item_first = 0xc0154000;
+	uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (len_m_7 << 14));
+	// uint32_t dma_item_first = 0xc0154000;
 	uint32_t dma_item[3] = {dma_item_first, ((uint32_t) beacon_raw), 0};
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
 	write_register(MAC_TX_PLCP0_BASE,
 		(((uint32_t)dma_item) & 0xfffff) |
 		(0x00600000));
-	write_register(MAC_TX_PLCP1_BASE, 0x0000004d);
-	write_register(MAC_TX_PLCP2_BASE, 0x00000000);
+	write_register(MAC_TX_PLCP1_BASE, len_m_15);
+	write_register(MAC_TX_PLCP2_BASE, 0);
 	write_register(MAC_TX_DURATION_BASE, 0);
 	
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0x02000000);

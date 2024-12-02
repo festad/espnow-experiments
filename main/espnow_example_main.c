@@ -11,8 +11,18 @@
 #include "peripherals.h"
 #include "hardware.h"
 
+// DISCLAIMER
+// This code is all work of the ZEUS WPI research group and Jasper Devreker,
+// my contribution level is practically zero, 
+// I just tried to adapt it to work on an esp32c6. 
+// This code mostly look like their first commit on the 
+// The first article of the series they wrote on the subject is here:
+// https://zeus.ugent.be/blog/23-24/open-source-esp32-wifi-mac/
+// Their code is here:
+// https://github.com/esp32-open-mac/esp32-open-mac/
 
 
+extern uint8_t beacon_raw[];
 
 
 static const char *TAG = "espnow_example";
@@ -44,6 +54,8 @@ void tx_task(void *pvParameter) {
 	ESP_LOGW(TAG, "transmitting now!");
 	for (int i = 0; i < 10; i++) {
 		ESP_LOGW(TAG, "transmit iter %d", i);
+        // Increase the length of the payload by i, 
+        *(uint32_t*)(beacon_raw) = *(uint32_t*)(beacon_raw) + i;
 		transmit_one(i);
         // send_sample_packets(true, false, false, false);
 		ESP_LOGW(TAG, "still alive");
