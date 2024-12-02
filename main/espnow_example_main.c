@@ -15,7 +15,7 @@
 // This code is all work of the ZEUS WPI research group and Jasper Devreker,
 // my contribution level is practically zero, 
 // I just tried to adapt it to work on an esp32c6. 
-// This code mostly look like their first commit on the 
+// This code mostly looks like their first commit on the 
 // The first article of the series they wrote on the subject is here:
 // https://zeus.ugent.be/blog/23-24/open-source-esp32-wifi-mac/
 // Their code is here:
