@@ -19,95 +19,6 @@ static const char *TAG = "espnow_example";
 
 void wifi_hw_start(int disable_power_management);
 
-
-void send_sample_packets(bool patchedtx, bool disable_lp_feature, bool posthmac, bool coexrequest)
-{
-    switch_channel(0x96c, 0);
-    ESP_LOGI(TAG, "Channel changed to 0x96c");
-
-    // uint32_t base_address = 0x4081fc28;
-    // struct Packet* packet = (struct Packet*)base_address;
-    // initialize_packet(packet, base_address);
-    // uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
-
-    // struct SubStruct* substruct = (struct SubStruct*)0x4081CA14;
-    // initialize_substruct(substruct, deadbeef_address);
-
-    for(int i=0; i<10; i++)
-    {
-        ESP_LOGI(TAG, "Sending packet %d", i);
-        // ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-        // patched_ieee80211_post_hmac_tx(base_address);
-        // ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-        // patched_lmacTxFrame(base_address, 0);
-        // ESP_LOGI(TAG, "Finished calling patched_lmacTxFrame");
-        // ppProcTxDone();
-
-        struct Packet* packet = (struct Packet*)malloc(sizeof(struct Packet));
-        if (packet == NULL) 
-        {
-            ESP_LOGE(TAG, "Failed to allocate memory for packet");
-            break;
-        }
-        uint32_t base_address = (uint32_t)packet;
-        initialize_packet(packet, base_address);
-        uint32_t deadbeef_address = (uint32_t)&(packet->deadbeef);
-
-        struct SubStruct* substruct = (struct SubStruct*)malloc(sizeof(struct SubStruct));
-        if(substruct == NULL)
-        {
-            ESP_LOGE(TAG, "Failed to allocate memory for substruct");
-            free(packet);
-            break;
-        }
-
-        initialize_substruct(substruct, deadbeef_address);
-
-        if(posthmac)
-        {
-            ESP_LOGI(TAG, "Calling patched_ieee80211_post_hmac_tx");
-            int ret = patched_ieee80211_post_hmac_tx((uint32_t)packet);
-            if(ret != 0)
-            {
-                ESP_LOGE(TAG, "Failed to post packet");
-                free(packet);
-                free(substruct);
-
-            }
-        }
-
-        if(coexrequest)
-        {
-            ESP_LOGI(TAG, "Calling pp_coex_tx_request");
-            pp_coex_tx_request((uint32_t)packet);
-        }
-
-        if(patchedtx)
-        {
-            ESP_LOGI(TAG, "Calling patched_lmacTxFrame");
-            patched_lmacTxFrame((uint32_t)packet, 0);
-        }
-
-        if(disable_lp_feature && i==0)
-        {
-            ESP_LOGI(TAG, "Calling pm_disconnected_stop");
-            pm_disconnected_stop();
-        }
-
-        // ESP_LOGI(TAG, "Calling ppProcTxDone");
-        // ppProcTxDone();
-
-        // ESP_LOGI(TAG, "Freed substruct");
-        // free(substruct);
-        // ESP_LOGI(TAG, "Freed packet");
-        // free(packet);
-
-        ESP_LOGI(TAG, "Finished sending packet %d", i);
-
-        vTaskDelay(500/portTICK_PERIOD_MS);
-    }    
-}
-
 void tx_task(void *pvParameter) {
 	ESP_LOGW(TAG, "wifi_hw_start");
 	wifi_hw_start(1);
@@ -131,7 +42,7 @@ void tx_task(void *pvParameter) {
 	}
 	
 	ESP_LOGW(TAG, "transmitting now!");
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 10; i++) {
 		ESP_LOGW(TAG, "transmit iter %d", i);
 		transmit_one(i);
         // send_sample_packets(true, false, false, false);
