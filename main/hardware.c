@@ -61,6 +61,7 @@ inline uint32_t read_register(uint32_t address) {
 #define MAC_TX_DURATION_BASE _MMIO_ADDR(0x600a54c0)
 #define MAC_TX_DURATION_OS (-0x1d)
 
+
 typedef struct __attribute__((packed)) dma_list_item {
 	uint16_t _unknown_2 : 14;
 	uint16_t length : 12;
