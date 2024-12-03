@@ -2,6 +2,7 @@
 #include "esp_event.h"
 #include "esp_system.h"
 #include "esp_event.h"
+#include "esp_netif.h"
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -23,6 +24,8 @@
 
 
 extern uint8_t beacon_raw[];
+extern int frequencies[];
+extern int n_frequencies;
 
 
 static const char *TAG = "espnow_example";
@@ -52,8 +55,15 @@ void tx_task(void *pvParameter) {
 	}
 	
 	ESP_LOGW(TAG, "transmitting now!");
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 40; i++) {
 		ESP_LOGW(TAG, "transmit iter %d", i);
+		int next_index = (i+1) % n_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
+		int next_frequency = frequencies[next_index];
+		// next_frequency = 0x96c;
+		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
+		// Set the frequency
+		switch_channel(next_frequency, 0);		
+		vTaskDelay(200 / portTICK_PERIOD_MS);
         // Increase the length of the payload by i, 
         *(uint32_t*)(beacon_raw) = *(uint32_t*)(beacon_raw) + i;
 		transmit_one(i);
@@ -75,9 +85,14 @@ void app_main(void)
     ESP_ERROR_CHECK( ret );
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+	ESP_LOGW(TAG, "calling esp_netif_init");
+	ESP_ERROR_CHECK(esp_netif_init());
+	ESP_LOGW(TAG, "done esp_netif_init");
     ESP_LOGW(TAG, "calling esp_wifi_init");
     ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
     ESP_LOGW(TAG, "done esp_wifi_init");
+
+	setup_tx_buffers();
 
     xTaskCreate(&tx_task, "tx_task", 4096, NULL, 5, NULL);
 

@@ -4,3 +4,4 @@
 #define _MMIO_ADDR(mem_addr) ((volatile uint32_t*)(mem_addr))
 
 void transmit_one(uint8_t index);
+void setup_tx_buffers();
