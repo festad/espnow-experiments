@@ -62,7 +62,7 @@ inline uint32_t read_register(uint32_t address) {
 #define MAC_TX_DURATION_OS (-0x1d)
 
 typedef struct __attribute__((packed)) dma_list_item {
-	uint16_t _unknown_2 : 12;
+	uint16_t _unknown_2 : 14;
 	uint16_t length : 12;
 	uint8_t _unknown_1 : 4;
 	uint8_t has_data : 1;
@@ -115,7 +115,7 @@ void transmit_one(uint8_t index) {
 	tx_item->next = NULL;
 
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
-	write_register(MAC_TX_PLCP0_BASE, ((uint32_t)tx_item) & 0xfffff | 0x00600000);
+	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
 	write_register(MAC_TX_PLCP1_BASE, len_m_15);
 	write_register(MAC_TX_PLCP2_BASE, 0);
 	write_register(MAC_TX_DURATION_BASE, 0);
