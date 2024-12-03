@@ -108,8 +108,6 @@ void set_datarate(uint8_t datarate, uint32_t length)
 	// where abc is the length and p is the last four bits of the datarate
 	// (so if the datarate is 0x11 then p is just 0b0001).
 
-	// Check if the datarate is in the range 0x01 to 0x0f
-	// with bit checks on the 5th bit (the last four are the rate)
 	if((datarate & 0x10) == 0) {
 		// Set the first word to 0x0000pabc
 		write_register(0x600a5488, ((datarate & 0xf ) << 12) | (length & 0xfff));

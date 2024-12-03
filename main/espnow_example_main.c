@@ -91,7 +91,7 @@ void tx_task(void *pvParameter) {
 		ESP_LOGW(TAG, "transmit iter %d", i);
 		int next_index = (i+1) % n_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
 		int next_frequency = frequencies[next_index];
-		// next_frequency = 0x96c;
+		next_frequency = 0x96c;
 		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
 		// Set the frequency
 		switch_channel(next_frequency, 0);		
