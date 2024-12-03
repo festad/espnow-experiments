@@ -83,6 +83,9 @@ uint8_t beacon_raw[] = {
 	0xef, 0xbe, 0xad, 0xde // last 4 bytes are a place holder FCS, because it is calculated by the hardware itself
 };
 
+uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
+uint8_t n_datarates = 9;
+
 dma_list_item* tx_item = NULL;
 
 void setup_tx_buffers() {
@@ -90,6 +93,43 @@ void setup_tx_buffers() {
 	// tx_buffer = calloc(1, 1600);
 }
 
+void set_datarate(uint8_t datarate, uint32_t length)
+{
+	// If the datarate has the form 0x01, 0x02, ..., 0x0f then
+	// we are dealing with a simpler case where we just set
+	// the address 0x600a5488 to 0x0000pabc where abc is the length
+	// and p is the last four bits of the datarate parameter.
+	// Then we set the next word as 0x00020000 and the next three 
+	// to 0x0.
+	// If the datarate has the form 0x11, 0x12, ..., 0x17 then
+	// the case is slightly more complicated, we set
+	// 0x600a5488 to 0x02000000, the next word to 0x00020000 as before,
+	// the next one to 0x00111110 and the next one to 0x000abc0p
+	// where abc is the length and p is the last four bits of the datarate
+	// (so if the datarate is 0x11 then p is just 0b0001).
+
+	// Check if the datarate is in the range 0x01 to 0x0f
+	// with bit checks on the 5th bit (the last four are the rate)
+	if((datarate & 0x10) == 0) {
+		// Set the first word to 0x0000pabc
+		write_register(0x600a5488, ((datarate & 0xf ) << 12) | (length & 0xfff));
+		// Set the second word to 0x00020000
+		write_register(0x600a548c, 0x00020000);
+		// Set the third word to 0x0
+		write_register(0x600a5490, 0);
+		// Set the fourth word to 0x0
+		write_register(0x600a5494, 0);
+	} else {
+		// Set the first word to 0x02000000
+		write_register(0x600a5488, 0x02000000);
+		// Set the second word to 0x00020000
+		write_register(0x600a548c, 0x00020000);
+		// Set the third word to 0x00111110
+		write_register(0x600a5490, 0x00111110);
+		// Set the fourth word to 0x000abc0p
+		write_register(0x600a5494, ((length & 0xfff) << 8) | (datarate & 0xf));
+	}
+}
 
 void transmit_one(uint8_t index) {
 	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
@@ -117,7 +157,8 @@ void transmit_one(uint8_t index) {
 
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
 	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
-	write_register(MAC_TX_PLCP1_BASE, len_m_15);
+	// write_register(MAC_TX_PLCP1_BASE, len_m_15);
+	set_datarate(datarates[index % n_datarates], len_m_15);
 	write_register(MAC_TX_PLCP2_BASE, 0);
 	write_register(MAC_TX_DURATION_BASE, 0);
 	
