@@ -90,6 +90,7 @@ extern uint32_t pp_sig_cnt_ptr;
 extern uint8_t ieee80211_ethbroadcast[6];
 extern uint32_t xphyQueue;
 extern uint32_t phy_param;
+extern uint32_t s_intr_handlers;
 
 // CLOSED SOURCE FUNCTIONS
 
