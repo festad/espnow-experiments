@@ -248,13 +248,13 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 		ESP_LOGW(TAG, "panic watchdog()");
 	}
 	volatile bool tmp = false;
-// 	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
-// 	{
-// 		hardware_queue_entry_t queue_entry;
-// 		queue_entry.type = RX_ENTRY;
-// 		queue_entry.content.rx.interrupt_received = cause;
-// 		xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
-// 	}
+	// if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
+	{
+		hardware_queue_entry_t queue_entry;
+		queue_entry.type = RX_ENTRY;
+		queue_entry.content.rx.interrupt_received = cause;
+		// xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
+	}
 }
 
 // If I get to overwrite &s_intr_handlers+0x8 to point to wifi_interrupt_handler
@@ -293,10 +293,10 @@ void print_rx_chain(dma_list_item* item)
 {
 	// Debug print to display RX linked list
 	int index = 0;
-	ESP_LOGD("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
+	ESP_LOGI("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
 	while (item)
 	{
-		ESP_LOGD("rx-chain", "idx=%d cur=%p owner=%d has_data=%d length=%d packet=%p next=%p",
+		ESP_LOGI("rx-chain", "idx=%d cur=%p owner=%d has_data=%d length=%d packet=%p next=%p",
 				index, item, item->owner, item->has_data, item->length, item->packet, item->next);
 		item = item->next;
 		index++;
@@ -330,14 +330,15 @@ void tx_task(void *pvParameter) {
 	esp_wifi_set_promiscuous(true);
 	ESP_LOGW(TAG, "done esp_wifi_set_promiscuous");	
 
+	ESP_LOGW(TAG, "setting up interrupt");
+	setup_interrupt();
+	
 	ESP_LOGW(TAG, "Killing proprietary wifi task (ppTask)");
-	pp_post(0xf, 0);	
+	pp_post(0xf, 0);
 
 	ESP_LOGW(TAG, "setting up buffers");
 	setup_tx_buffers();
 
-	ESP_LOGW(TAG, "setting up interrupt");
-	setup_interrupt();
 
 	// ESP_LOGW(TAG, "wifi_hw_start");
 	// wifi_hw_start(1);

@@ -101,9 +101,9 @@ void initialize_substruct(struct SubStruct* substruct, uint32_t deadbeef_address
 
 void switch_channel(uint32_t frequency, uint32_t param_2)
 {
-    ESP_LOGI(TAG, "Before switching channel");
-    ESP_LOGI(TAG, "0x600a00c0: %"PRIu32" - %"PRIx32" ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
-    ESP_LOGI(TAG, "0x600a7848: %"PRIu32" - %"PRIx32" ", *(uint32_t *)(0x600a7848), *(uint32_t *)(0x600a7848));
+    // ESP_LOGI(TAG, "Before switching channel");
+    // ESP_LOGI(TAG, "0x600a00c0: %"PRIu32" - %"PRIx32" ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
+    // ESP_LOGI(TAG, "0x600a7848: %"PRIu32" - %"PRIx32" ", *(uint32_t *)(0x600a7848), *(uint32_t *)(0x600a7848));
     
     // pm_wake_up();
     // ic_mac_deinit();
@@ -129,13 +129,13 @@ void switch_channel(uint32_t frequency, uint32_t param_2)
     // Forcing a fixed frequency, here it's the middle point between 6 and 7
     // reshaped_frequency = 0x14;
 
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Switching channel");
-    ESP_LOGI(TAG, "---------------------------------");
-    ESP_LOGI(TAG, "channel: (%d)", channel);
-    ESP_LOGI(TAG, "frequency: (%"PRIu32") =  (%"PRIx32")", frequency, frequency);
-    ESP_LOGI(TAG, "reshaped frequency: (%"PRIu32") = (%"PRIx32")", reshaped_frequency, reshaped_frequency);
-    ESP_LOGI(TAG, "---------------------------------");
+    // ESP_LOGI(TAG, "========================================");
+    // ESP_LOGI(TAG, "Switching channel");
+    // ESP_LOGI(TAG, "---------------------------------");
+    // ESP_LOGI(TAG, "channel: (%d)", channel);
+    // ESP_LOGI(TAG, "frequency: (%"PRIu32") =  (%"PRIx32")", frequency, frequency);
+    // ESP_LOGI(TAG, "reshaped frequency: (%"PRIu32") = (%"PRIx32")", reshaped_frequency, reshaped_frequency);
+    // ESP_LOGI(TAG, "---------------------------------");
 
     if (reshaped_frequency < 0x55)
     {
@@ -164,10 +164,10 @@ void patched_freq_chan_en_sw(uint32_t reshaped_frequency)
 {
     *(uint32_t *)(0x600a00c0) = (reshaped_frequency & 0x7f) << 7 | ( *(uint32_t *)(0x600a00c0) & 0xffffc00f ) | 0x4000;
     // esp_rom_delay_us(1);
-    ESP_LOGI(TAG, "0x600a00c0: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
+    // ESP_LOGI(TAG, "0x600a00c0: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
 
     *(uint32_t *)(0x600a00c0) = *(uint32_t *)(0x600a00c0) &  0xffffbfff;
-    ESP_LOGI(TAG, "0x600a00c0: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
+    // ESP_LOGI(TAG, "0x600a00c0: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a00c0), *(uint32_t *)(0x600a00c0));
 
     return;
 }
@@ -175,7 +175,7 @@ void patched_freq_chan_en_sw(uint32_t reshaped_frequency)
 void patched_nrx_freq_set(uint32_t reshaped_frequency)
 {
     *(uint32_t *)(0x600a7848) = (((0x50 << ( (*(uint32_t *)(0x600a7848) >> 0x18) & 0x1f)) / reshaped_frequency) & 0xffffffU) | (*(uint32_t *)(0x600a7848) & 0xff000000);
-    ESP_LOGI(TAG, "0x600a7848: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a7848), *(uint32_t *)(0x600a7848));
+    // ESP_LOGI(TAG, "0x600a7848: (%"PRIu32") - (%"PRIx32") ", *(uint32_t *)(0x600a7848), *(uint32_t *)(0x600a7848));
 
     return;
 }
