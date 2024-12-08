@@ -19,6 +19,8 @@
 
 #include <inttypes.h>
 
+#define RX_BUFFER_AMOUNT 10
+
 static const char* TAG = "hardware.c";
 
 // DISCLAIMER
@@ -127,6 +129,26 @@ dma_list_item* rx_chain_last = NULL;
 
 volatile int interrupt_count = 0;
 
+dma_list_item *tx_item = NULL;
+uint8_t *tx_buffer = NULL;
+
+uint64_t last_transmit_timestamp = 0;
+uint32_t seqnum = 0;
+
+void setup_tx_buffers()
+{
+	tx_item = calloc(1, sizeof(dma_list_item));
+	tx_buffer = calloc(1, 1600);
+}
+
+void log_dma_item(dma_list_item *item)
+{
+	ESP_LOGD("dma_item", "cur=%p owner=%d has_data=%d length=%d packet=%p next=%p", 
+		item, item->owner, item->has_data, item->length, item->packet, item->next);
+}
+
+
+
 uint8_t beacon_raw[] = {
 	0x4d, 0x00, 0x00, 0x00, // Length
 	0x00, 0x00, 0x00, 0x00, // Empty word
@@ -143,14 +165,6 @@ uint8_t n_datarates = 9;
 
 extern int frequencies[];
 extern int n_frequencies;
-
-
-dma_list_item* tx_item = NULL;
-
-void setup_tx_buffers() {
-	tx_item = calloc(1, sizeof(dma_list_item));
-	// tx_buffer = calloc(1, 1600);
-}
 
 void set_datarate(uint8_t datarate, uint32_t length)
 {
@@ -248,12 +262,12 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 		ESP_LOGW(TAG, "panic watchdog()");
 	}
 	volatile bool tmp = false;
-	// if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
+	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
 	{
 		hardware_queue_entry_t queue_entry;
 		queue_entry.type = RX_ENTRY;
 		queue_entry.content.rx.interrupt_received = cause;
-		// xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
+		xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
 	}
 }
 
@@ -293,7 +307,7 @@ void print_rx_chain(dma_list_item* item)
 {
 	// Debug print to display RX linked list
 	int index = 0;
-	ESP_LOGI("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
+	ESP_LOGD("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
 	while (item)
 	{
 		ESP_LOGI("rx-chain", "idx=%d cur=%p owner=%d has_data=%d length=%d packet=%p next=%p",
@@ -304,16 +318,128 @@ void print_rx_chain(dma_list_item* item)
 	ESP_LOGD("rx-chain", "base=%p next=%p last=%p",  (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
 }
 
+void set_rx_base_address(dma_list_item *item)
+{
+	write_register(WIFI_BASE_RX_DSCR, (uint32_t) item);
+}
 
-void tx_task(void *pvParameter) {
+void setup_rx_chain()
+{
+	dma_list_item *prev = NULL;
+	for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
+	{
+		dma_list_item *item = malloc(sizeof(dma_list_item));
+		item->has_data = 0;
+		item->owner = 1;
+		item->length = 1600;
 
+		uint8_t *packet = malloc(1600);
+		item->packet = packet;
+		item->next = prev;
+		prev = item;
+		if (!rx_chain_last)
+		{
+			rx_chain_last = item;
+		}
+	}
+	set_rx_base_address(prev);
+	rx_chain_begin = prev;
+}
+
+void update_rx_chain()
+{
+	write_register(WIFI_MAC_BITMASK, read_register(WIFI_MAC_BITMASK) | 0X1);
+	// Wait for confirmation from hardware
+	while (read_register(WIFI_MAC_BITMASK) & 0x1);
+}
+
+void handle_rx_messages(rx_callback rxcb)
+{
+	dma_list_item *current = rx_chain_begin;
+
+	while(current)
+	{
+		dma_list_item *next = current->next;
+		if (current->has_data)
+		{
+			wifi_promiscuous_pkt_t *packet = current->packet;
+
+			rxcb(packet);
+			rx_chain_begin = current->next;
+			current->next = NULL;
+			current->has_data = 0;
+
+			// Put the DMA buffer back in the linked list
+			if(rx_chain_begin)
+			{
+				rx_chain_last->next = current;
+				update_rx_chain();
+				if(read_register(WIFI_NEXT_RX_DSCR) == 0x0)
+				{
+					dma_list_item *last_dscr = (dma_list_item *)read_register(WIFI_LAST_RX_DSCR);
+					if (current == last_dscr)
+					{
+						rx_chain_last = current;
+					}
+					else
+					{
+						set_rx_base_address(last_dscr->next);
+						rx_chain_last = current;
+					}
+				}
+				else
+				{
+					rx_chain_last = current;
+				}
+			}
+			else
+			{
+				rx_chain_begin = current;
+				set_rx_base_address(current);
+				rx_chain_last = current;
+			}
+		}
+		current = next;
+	}
+}
+
+bool wifi_hardware_tx_func(uint8_t *packet, uint32_t len)
+{
+	if(!xSemaphoreTake(tx_queue_resources, 1))
+	{
+		ESP_LOGE(TAG, "TX semaphore full!");
+		return false;
+	}
+	uint8_t *queue_copy = (uint8_t *)malloc(len);
+	memcpy(queue_copy, packet, len);
+	hardware_queue_entry_t queue_entry;
+	queue_entry.type = TX_ENTRY;
+	queue_entry.content.tx.len = len;
+	queue_entry.content.tx.packet = queue_copy;
+	xQueueSendToBack(hardware_event_queue, &queue_entry, 0);
+	ESP_LOGI(TAG, "TX entry queued");
+	return true;
+}
+
+
+void wifi_hardware_task(hardware_mac_args *pvParameter) 
+{
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-	cfg.static_rx_buf_num = 4; // we won't use these buffers, so reduce the amount from default 10, so we don't waste as much memory
+	cfg.static_rx_buf_num = 2; // we won't use these buffers, so reduce the amount from default 10, so we don't waste as much memory
 	// Disable AMPDU and AMSDU for now, we don't support this (yet)
 	cfg.ampdu_rx_enable = false;
 	cfg.ampdu_tx_enable = false;
 	cfg.amsdu_tx_enable = false;
 	cfg.nvs_enable = false;	
+
+	hardware_event_queue = xQueueCreate(RX_BUFFER_AMOUNT+10, sizeof(hardware_queue_entry_t));
+	assert(hardware_event_queue);
+	rx_queue_resources = xSemaphoreCreateCounting(RX_BUFFER_AMOUNT, RX_BUFFER_AMOUNT);
+	assert(rx_queue_resources);
+	tx_queue_resources = xSemaphoreCreateCounting(10, 10);
+	assert(tx_queue_resources);
+
+
     ESP_LOGW(TAG, "calling esp_wifi_init");
     ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
     ESP_LOGW(TAG, "done esp_wifi_init");
@@ -336,9 +462,13 @@ void tx_task(void *pvParameter) {
 	ESP_LOGW(TAG, "Killing proprietary wifi task (ppTask)");
 	pp_post(0xf, 0);
 
+	ESP_LOGW(TAG, "Setting up the rx chaing");
+	setup_rx_chain();
 	ESP_LOGW(TAG, "setting up buffers");
 	setup_tx_buffers();
 
+	// pvParameter->_tx_func_callback(&wifi_hardware_tx_func);
+	ESP_LOGW(TAG, "Starting to receive messages");
 
 	// ESP_LOGW(TAG, "wifi_hw_start");
 	// wifi_hw_start(1);
@@ -346,38 +476,83 @@ void tx_task(void *pvParameter) {
 
 
 
-    ESP_LOGW(TAG, "switch channel to 0x96c");
-    switch_channel(0x96c, 0);
-    ESP_LOGW(TAG, "done switch channel to 0x96c");
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    //ESP_LOGW(TAG, "switch channel to 0x96c");
+    //switch_channel(0x96c, 0);
+    //ESP_LOGW(TAG, "done switch channel to 0x96c");
+    //vTaskDelay(200 / portTICK_PERIOD_MS);
+//
+	//for (int i = 0; i < 2; i++) {
+		//uint8_t mac[6] = {0};
+		//if (esp_wifi_get_mac(i, mac) == ESP_OK) {
+			//ESP_LOGW(TAG, "MAC %d = %02x:%02x:%02x:%02x:%02x:%02x", i, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+		//}
+	//}
+//
+	//for (int i = 0; i < 3; i++) {
+		//ESP_LOGW(TAG, "going to transmit in %d", 3 - i);
+		//vTaskDelay(1000 / portTICK_PERIOD_MS);
+	//}
+	//
+	//ESP_LOGW(TAG, "transmitting now!");
+	//for (int i = 0; ; i++) {
+		//ESP_LOGW(TAG, "transmit iter %d", i);
+		//int next_index = (i+1) % n_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
+		//int next_frequency = frequencies[next_index];
+		//next_frequency = 0x96c;
+		//ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
+		//// Set the frequency
+		//switch_channel(next_frequency, 0);		
+		//vTaskDelay(200 / portTICK_PERIOD_MS);
+        //// Increase the length of the payload by i, 
+        //*(uint32_t*)(beacon_raw) = *(uint32_t*)(beacon_raw) + i;
+		//transmit_one(i);
+        //// send_sample_packets(true, false, false, false);
+		//ESP_LOGW(TAG, "still alive");
+		//vTaskDelay(500 / portTICK_PERIOD_MS);
+	//}
 
-	for (int i = 0; i < 2; i++) {
-		uint8_t mac[6] = {0};
-		if (esp_wifi_get_mac(i, mac) == ESP_OK) {
-			ESP_LOGW(TAG, "MAC %d = %02x:%02x:%02x:%02x:%02x:%02x", i, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	while(true)
+	{
+		hardware_queue_entry_t queue_entry;
+		if(xQueueReceive(hardware_event_queue, &(queue_entry), 10))
+		{
+			if(queue_entry.type == RX_ENTRY)
+			{
+				uint32_t cause = queue_entry.content.rx.interrupt_received;
+				ESP_LOGW(TAG, "interrupt received: 0x%08lx", cause);
+				if(cause & 0x8000)
+				{
+					ESP_LOGW(TAG, "panic watchdog()");
+				}
+				if(cause & 0x1000024)
+				{
+					ESP_LOGW(TAG, "received message");
+					handle_rx_messages(pvParameter->_rx_callback);
+				}
+				if(cause & 0x80)
+				{
+					ESP_LOGW(TAG, "lmacPostTxComplete");
+				}
+				if(cause & 0x80000)
+				{
+					ESP_LOGW(TAG, "lmacProcessAllTxTimeout");
+				}
+				if(cause & 0x100)
+				{
+					ESP_LOGW(TAG, "lmacProcessCollisions");
+				}
+				xSemaphoreGive(rx_queue_resources);
+			}
+			else if (queue_entry.type == RX_ENTRY)
+			{
+				transmit_one(0);
+				// free
+				xSemaphoreGive(tx_queue_resources);
+			}
+			else
+			{
+				ESP_LOGI(TAG, "unknown queue type");
+			}
 		}
-	}
-
-	for (int i = 0; i < 3; i++) {
-		ESP_LOGW(TAG, "going to transmit in %d", 3 - i);
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
-	}
-	
-	ESP_LOGW(TAG, "transmitting now!");
-	for (int i = 0; ; i++) {
-		ESP_LOGW(TAG, "transmit iter %d", i);
-		int next_index = (i+1) % n_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
-		int next_frequency = frequencies[next_index];
-		next_frequency = 0x96c;
-		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
-		// Set the frequency
-		switch_channel(next_frequency, 0);		
-		vTaskDelay(200 / portTICK_PERIOD_MS);
-        // Increase the length of the payload by i, 
-        *(uint32_t*)(beacon_raw) = *(uint32_t*)(beacon_raw) + i;
-		transmit_one(i);
-        // send_sample_packets(true, false, false, false);
-		ESP_LOGW(TAG, "still alive");
-		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 }

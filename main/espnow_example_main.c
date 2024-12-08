@@ -47,6 +47,6 @@ void app_main(void)
 	// ESP_ERROR_CHECK(esp_netif_init());
 	// ESP_LOGW(TAG, "done esp_netif_init");
 
-    xTaskCreate(&tx_task, "tx_task", 4096, NULL, 5, NULL);
+    xTaskCreate(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL, 5, NULL);
 
 }
