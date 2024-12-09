@@ -15,6 +15,7 @@
 #include "patch.h"
 #include "peripherals.h"
 // #include "proprietary.h"
+#include "mac.h"
 
 
 #include <inttypes.h>
@@ -149,16 +150,18 @@ void log_dma_item(dma_list_item *item)
 
 
 
-uint8_t beacon_raw[] = {
-	0x4d, 0x00, 0x00, 0x00, // Length
-	0x00, 0x00, 0x00, 0x00, // Empty word
-	0xd0, 0x00, 0x00, 0x00, // Start of frame
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8,
-	0xba, 0xde, 0xaf, 0xfe, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x64, 0x00, 0x31, 0x04, 0x00, 0x10, 0x45, 0x53, 0x50, 0x20, 0x62, 0x65, 0x61, 0x63, 0x6f, 0x6e, 0x20, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 0x03, 0x01, 0x01, 0x05, 0x04, 0x01, 0x02, 0x00, 0x00,
-	0xef, 0xbe, 0xad, 0xde // last 4 bytes are a place holder FCS, because it is calculated by the hardware itself
-};
+// uint8_t beacon_raw[] = {
+// 	0x4d, 0x00, 0x00, 0x00, // Length
+// 	0x00, 0x00, 0x00, 0x00, // Empty word
+// 	0xd0, 0x00, 0x00, 0x00, // Start of frame
+// 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+// 	0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8,
+// 	0xba, 0xde, 0xaf, 0xfe, 0x00, 0x00,
+// 	0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x64, 0x00, 0x31, 0x04, 0x00, 0x10, 0x45, 0x53, 0x50, 0x20, 0x62, 0x65, 0x61, 0x63, 0x6f, 0x6e, 0x20, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 0x03, 0x01, 0x01, 0x05, 0x04, 0x01, 0x02, 0x00, 0x00,
+// 	0xef, 0xbe, 0xad, 0xde // last 4 bytes are a place holder FCS, because it is calculated by the hardware itself
+// };
+
+extern uint8_t beacon_raw[];
 
 uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
 uint8_t n_datarates = 9;
@@ -325,6 +328,7 @@ void set_rx_base_address(dma_list_item *item)
 
 void setup_rx_chain()
 {
+	ESP_LOGI(TAG, "Setting up RX chain");
 	dma_list_item *prev = NULL;
 	for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
 	{
@@ -344,10 +348,13 @@ void setup_rx_chain()
 	}
 	set_rx_base_address(prev);
 	rx_chain_begin = prev;
+	ESP_LOGI(TAG, "rx_chain_begin = %p", rx_chain_begin);
+	ESP_LOGI(TAG, "RX chain set up");
 }
 
 void update_rx_chain()
 {
+	ESP_LOGI(TAG, "Calling update_rx_chain");
 	write_register(WIFI_MAC_BITMASK, read_register(WIFI_MAC_BITMASK) | 0X1);
 	// Wait for confirmation from hardware
 	while (read_register(WIFI_MAC_BITMASK) & 0x1);
@@ -355,50 +362,66 @@ void update_rx_chain()
 
 void handle_rx_messages(rx_callback rxcb)
 {
+	ESP_LOGI(TAG, "Calling handle_rx_messages");
+
 	dma_list_item *current = rx_chain_begin;
+	ESP_LOGI(TAG, "current ptr = %p", current);
 
 	while(current)
 	{
 		dma_list_item *next = current->next;
 		if (current->has_data)
 		{
+			ESP_LOGI(TAG, "current->has_data = 1");
 			wifi_promiscuous_pkt_t *packet = current->packet;
 
+			ESP_LOGI(TAG, "Calling rxcb");
 			rxcb(packet);
+
 			rx_chain_begin = current->next;
+			ESP_LOGI(TAG, "rx_chain_begin = current->next = %p", rx_chain_begin);
 			current->next = NULL;
 			current->has_data = 0;
 
 			// Put the DMA buffer back in the linked list
 			if(rx_chain_begin)
 			{
+				ESP_LOGI(TAG, "rx_chain_begin is not NULL");
+				ESP_LOGI(TAG, "rx_chain_last = %p", rx_chain_last);
 				rx_chain_last->next = current;
+				ESP_LOGI(TAG, "rx_chain_last->next = current = %p", current);
 				update_rx_chain();
 				if(read_register(WIFI_NEXT_RX_DSCR) == 0x0)
 				{
+					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) == 0 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					dma_list_item *last_dscr = (dma_list_item *)read_register(WIFI_LAST_RX_DSCR);
 					if (current == last_dscr)
 					{
+						ESP_LOGI(TAG, "current == last_dscr");
 						rx_chain_last = current;
 					}
 					else
 					{
+						ESP_LOGI(TAG, "current != last_dscr");
 						set_rx_base_address(last_dscr->next);
 						rx_chain_last = current;
 					}
 				}
 				else
 				{
+					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) != 0 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					rx_chain_last = current;
 				}
 			}
 			else
 			{
+				ESP_LOGI(TAG, "rx_chain_begin is NULL");
 				rx_chain_begin = current;
 				set_rx_base_address(current);
 				rx_chain_last = current;
 			}
 		}
+		ESP_LOGI(TAG, "current->has_data = 0");
 		current = next;
 	}
 }
@@ -467,7 +490,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	ESP_LOGW(TAG, "setting up buffers");
 	setup_tx_buffers();
 
-	// pvParameter->_tx_func_callback(&wifi_hardware_tx_func);
+	pvParameter->_tx_func_callback(&wifi_hardware_tx_func);
 	ESP_LOGW(TAG, "Starting to receive messages");
 
 	// ESP_LOGW(TAG, "wifi_hw_start");
@@ -476,10 +499,10 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 
 
-    //ESP_LOGW(TAG, "switch channel to 0x96c");
-    //switch_channel(0x96c, 0);
-    //ESP_LOGW(TAG, "done switch channel to 0x96c");
-    //vTaskDelay(200 / portTICK_PERIOD_MS);
+    ESP_LOGW(TAG, "switch channel to 0x96c");
+    switch_channel(0x96c, 0);
+    ESP_LOGW(TAG, "done switch channel to 0x96c");
+    vTaskDelay(200 / portTICK_PERIOD_MS);
 //
 	//for (int i = 0; i < 2; i++) {
 		//uint8_t mac[6] = {0};
@@ -543,7 +566,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 				}
 				xSemaphoreGive(rx_queue_resources);
 			}
-			else if (queue_entry.type == RX_ENTRY)
+			else if (queue_entry.type == TX_ENTRY)
 			{
 				transmit_one(0);
 				// free

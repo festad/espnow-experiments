@@ -11,6 +11,7 @@
 #include "patch.h"
 #include "peripherals.h"
 #include "hardware.h"
+#include "mac.h"
 
 // DISCLAIMER
 // This code is all work of the ZEUS WPI research group and Jasper Devreker,
@@ -32,6 +33,10 @@ static const char *TAG = "espnow_example";
 
 void wifi_hw_start(int disable_power_management);
 
+hardware_mac_args open_hw_args = {
+    ._rx_callback = open_mac_rx_callback,
+    ._tx_func_callback = open_mac_tx_func_callback
+};
 
 void app_main(void)
 {
@@ -47,6 +52,8 @@ void app_main(void)
 	// ESP_ERROR_CHECK(esp_netif_init());
 	// ESP_LOGW(TAG, "done esp_netif_init");
 
-    xTaskCreate(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL, 5, NULL);
+    // args: osi_thread_run, name, stack size, &start_arg, priority, &thread->thread_handle, core
+    xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, &open_hw_args, 5, NULL, 0);
+    xTaskCreatePinnedToCore(&mac_task,           "open_mac",           4096, NULL,          3, NULL, 1);
 
 }
