@@ -20,7 +20,12 @@
 
 #include <inttypes.h>
 
-#define RX_BUFFER_AMOUNT 10
+#define RX_BUFFER_AMOUNT 7
+#define RX_RESOURCE_SEMAPHORE 7
+#define MAX_RECEIVED_PACKETS 7 
+
+#define TX_BUFFER_AMOUNT 10 
+#define TX_RESOURCE_SEMAPHORE 10
 
 static const char* TAG = "hardware.c";
 
@@ -81,6 +86,7 @@ inline uint32_t read_register(uint32_t address) {
 #define WIFI_NEXT_RX_DSCR _MMIO_ADDR(0x600a4088)
 #define WIFI_BASE_RX_DSCR _MMIO_ADDR(0x600a4084)
 #define WIFI_MAC_BITMASK _MMIO_ADDR(0x600a4080)
+#define WIFI_MAC_INITMASK _MMIO_ADDR(0x600a407c)
 
 
 typedef struct __attribute__((packed)) dma_list_item {
@@ -329,6 +335,11 @@ void set_rx_base_address(dma_list_item *item)
 void setup_rx_chain()
 {
 	ESP_LOGI(TAG, "Setting up RX chain");
+	ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
+	ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
+	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));
 	dma_list_item *prev = NULL;
 	for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
 	{
@@ -355,7 +366,12 @@ void setup_rx_chain()
 void update_rx_chain()
 {
 	ESP_LOGI(TAG, "Calling update_rx_chain");
-	write_register(WIFI_MAC_BITMASK, read_register(WIFI_MAC_BITMASK) | 0X1);
+	ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
+	ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
+	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
+	write_register(WIFI_MAC_BITMASK, read_register(WIFI_MAC_BITMASK) | 0x1);
 	// Wait for confirmation from hardware
 	while (read_register(WIFI_MAC_BITMASK) & 0x1);
 }
@@ -363,15 +379,22 @@ void update_rx_chain()
 void handle_rx_messages(rx_callback rxcb)
 {
 	ESP_LOGI(TAG, "Calling handle_rx_messages");
+	ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
+	ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
+	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
 
 	dma_list_item *current = rx_chain_begin;
 	ESP_LOGI(TAG, "current ptr = %p", current);
-
+	int received = 0;
 	while(current)
 	{
 		dma_list_item *next = current->next;
 		if (current->has_data)
 		{
+			received++;
+
 			ESP_LOGI(TAG, "current->has_data = 1");
 			wifi_promiscuous_pkt_t *packet = current->packet;
 
@@ -391,9 +414,9 @@ void handle_rx_messages(rx_callback rxcb)
 				rx_chain_last->next = current;
 				ESP_LOGI(TAG, "rx_chain_last->next = current = %p", current);
 				update_rx_chain();
-				if(read_register(WIFI_NEXT_RX_DSCR) == 0x0)
+				if(read_register(WIFI_NEXT_RX_DSCR) == 0x3ff00000)
 				{
-					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) == 0 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) == 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					dma_list_item *last_dscr = (dma_list_item *)read_register(WIFI_LAST_RX_DSCR);
 					if (current == last_dscr)
 					{
@@ -409,7 +432,7 @@ void handle_rx_messages(rx_callback rxcb)
 				}
 				else
 				{
-					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) != 0 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) != 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					rx_chain_last = current;
 				}
 			}
@@ -423,7 +446,12 @@ void handle_rx_messages(rx_callback rxcb)
 		}
 		ESP_LOGI(TAG, "current->has_data = 0");
 		current = next;
+		if(received > MAX_RECEIVED_PACKETS)
+		{
+			goto out;
+		}
 	}
+	out:
 }
 
 bool wifi_hardware_tx_func(uint8_t *packet, uint32_t len)
@@ -455,17 +483,17 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	cfg.amsdu_tx_enable = false;
 	cfg.nvs_enable = false;	
 
-	hardware_event_queue = xQueueCreate(RX_BUFFER_AMOUNT+10, sizeof(hardware_queue_entry_t));
+	hardware_event_queue = xQueueCreate(RX_RESOURCE_SEMAPHORE+TX_RESOURCE_SEMAPHORE, sizeof(hardware_queue_entry_t));
 	assert(hardware_event_queue);
-	rx_queue_resources = xSemaphoreCreateCounting(RX_BUFFER_AMOUNT, RX_BUFFER_AMOUNT);
+	rx_queue_resources = xSemaphoreCreateCounting(RX_RESOURCE_SEMAPHORE, RX_RESOURCE_SEMAPHORE);
 	assert(rx_queue_resources);
-	tx_queue_resources = xSemaphoreCreateCounting(10, 10);
+	tx_queue_resources = xSemaphoreCreateCounting(TX_RESOURCE_SEMAPHORE, TX_RESOURCE_SEMAPHORE);
 	assert(tx_queue_resources);
 
 
-    ESP_LOGW(TAG, "calling esp_wifi_init");
-    ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
-    ESP_LOGW(TAG, "done esp_wifi_init");
+	ESP_LOGW(TAG, "calling esp_wifi_init");
+	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
+	ESP_LOGW(TAG, "done esp_wifi_init");
 
 	ESP_LOGW(TAG, "calling esp_wifi_set_mode");
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
