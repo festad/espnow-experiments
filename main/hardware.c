@@ -21,7 +21,7 @@
 #include <inttypes.h>
 
 #define RX_BUFFER_AMOUNT 7
-#define RX_RESOURCE_SEMAPHORE 7
+#define RX_RESOURCE_SEMAPHORE 15
 #define MAX_RECEIVED_PACKETS 7 
 
 #define TX_BUFFER_AMOUNT 10 
@@ -316,7 +316,7 @@ void print_rx_chain(dma_list_item* item)
 {
 	// Debug print to display RX linked list
 	int index = 0;
-	ESP_LOGD("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
+	ESP_LOGI("rx-chain", "base=%p next=%p last=%p", (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
 	while (item)
 	{
 		ESP_LOGI("rx-chain", "idx=%d cur=%p owner=%d has_data=%d length=%d packet=%p next=%p",
@@ -324,7 +324,7 @@ void print_rx_chain(dma_list_item* item)
 		item = item->next;
 		index++;
 	}
-	ESP_LOGD("rx-chain", "base=%p next=%p last=%p",  (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
+	ESP_LOGI("rx-chain", "base=%p next=%p last=%p",  (dma_list_item*) read_register(WIFI_BASE_RX_DSCR), (dma_list_item*) read_register(WIFI_NEXT_RX_DSCR), (dma_list_item*) read_register(WIFI_LAST_RX_DSCR));
 }
 
 void set_rx_base_address(dma_list_item *item)
@@ -347,6 +347,8 @@ void setup_rx_chain()
 		item->has_data = 0;
 		item->owner = 1;
 		item->length = 1600;
+		item->_unknown_1 = ~0;
+		item->_unknown_2 = ~0;
 
 		uint8_t *packet = malloc(1600);
 		item->packet = packet;
@@ -384,6 +386,9 @@ void handle_rx_messages(rx_callback rxcb)
 	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
 	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
+
+	ESP_LOGI(TAG, "printing the chain");
+	print_rx_chain(rx_chain_begin);
 
 	dma_list_item *current = rx_chain_begin;
 	ESP_LOGI(TAG, "current ptr = %p", current);
