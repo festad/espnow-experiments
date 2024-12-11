@@ -341,16 +341,43 @@ void setup_rx_chain()
 	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));
 	dma_list_item *prev = NULL;
+	// for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
+	// {
+	// 	dma_list_item *item = malloc(sizeof(dma_list_item));
+	// 	item->has_data = 0;
+	// 	item->owner = 1;
+	// 	item->length = 1600;
+	// 	item->_unknown_1 = 0;
+	// 	item->_unknown_2 = 1700;
+
+	// 	uint8_t *packet = malloc(1600);
+	// 	item->packet = packet;
+	// 	item->next = prev;
+	// 	prev = item;
+	// 	if (!rx_chain_last)
+	// 	{
+	// 		rx_chain_last = item;
+	// 	}
+	// }
+	// First we create a contiguous area of RX_BUFFER_AMOUNT elements 
+	// of size dma_list_item, then we create a contiguous area of 
+	// RX_BUFFER_AMOUNT elements of size 1600, 
+	// then we set the various fields and teh packet field of the dma_list_item to point to the
+	// corresponding element of the second area
+
+	// Printing the size of dma_list_item
+	ESP_LOGI(TAG, "sizeof(dma_list_item) = %d", sizeof(dma_list_item));
+	dma_list_item *items = malloc(RX_BUFFER_AMOUNT * sizeof(dma_list_item));
+	uint8_t *packets = malloc(RX_BUFFER_AMOUNT * 1600);
 	for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
 	{
-		dma_list_item *item = malloc(sizeof(dma_list_item));
+		dma_list_item *item = items + i;
 		item->has_data = 0;
 		item->owner = 1;
 		item->length = 1600;
-		item->_unknown_1 = ~0;
-		item->_unknown_2 = ~0;
-
-		uint8_t *packet = malloc(1600);
+		item->_unknown_1 = 0;
+		item->_unknown_2 = 1700;
+		uint8_t *packet = packets + i * 1600;
 		item->packet = packet;
 		item->next = prev;
 		prev = item;
