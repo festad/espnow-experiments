@@ -212,6 +212,7 @@ void set_datarate(uint8_t datarate, uint32_t length)
 }
 
 void transmit_one(uint8_t index) {
+	static int ctr = 0;
 	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
 	// uint32_t size_len = buffer_len + 32;
 	// The length of the payload is in the first 4 bytes of the packet
@@ -238,7 +239,7 @@ void transmit_one(uint8_t index) {
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
 	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
 	// write_register(MAC_TX_PLCP1_BASE, len_m_15);
-	set_datarate(datarates[index % n_datarates], len_m_15);
+	set_datarate(datarates[ctr % n_datarates], len_m_15);
 	write_register(MAC_TX_PLCP2_BASE, 0);
 	write_register(MAC_TX_DURATION_BASE, 0);
 	
@@ -249,6 +250,7 @@ void transmit_one(uint8_t index) {
 	// TRANSMIT!
 	write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
 	ESP_LOGW(TAG, "packet should have been sent");
+	++ctr;
 }
 
 void IRAM_ATTR wifi_interrupt_handler(void* args) 
@@ -615,6 +617,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 				{
 					ESP_LOGW(TAG, "received message");
 					handle_rx_messages(pvParameter->_rx_callback);
+					transmit_one(0);
 				}
 				if(cause & 0x80)
 				{
