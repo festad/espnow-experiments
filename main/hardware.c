@@ -367,8 +367,8 @@ void setup_rx_chain()
 
 	// Printing the size of dma_list_item
 	ESP_LOGI(TAG, "sizeof(dma_list_item) = %d", sizeof(dma_list_item));
-	dma_list_item *items = malloc(RX_BUFFER_AMOUNT * sizeof(dma_list_item));
-	uint8_t *packets = malloc(RX_BUFFER_AMOUNT * 1600);
+	dma_list_item *items = malloc(RX_BUFFER_AMOUNT * sizeof(dma_list_item /*12*/) + 4 /*one word to store 0x6a8*/);
+	uint8_t *packets = malloc(RX_BUFFER_AMOUNT * (1700+4+4));
 	for (int i = 0; i < RX_BUFFER_AMOUNT; i++)
 	{
 		dma_list_item *item = items + i;
@@ -377,7 +377,7 @@ void setup_rx_chain()
 		item->length = 1600;
 		item->_unknown_1 = 0;
 		item->_unknown_2 = 1700;
-		uint8_t *packet = packets + i * 1600;
+		uint8_t *packet = packets + i * (1700+4+4);
 		item->packet = packet;
 		item->next = prev;
 		prev = item;
@@ -386,6 +386,10 @@ void setup_rx_chain()
 			rx_chain_last = item;
 		}
 	}
+	// Get to the last word allocated for dma_list_item to write 0x6a8
+	// by adding RX_BUFFER_AMOUNT * sizeof(dma_list_item) to items
+	uint32_t *last_word = (uint32_t*)(items + RX_BUFFER_AMOUNT);
+	*last_word = 0x6a8;
 	set_rx_base_address(prev);
 	rx_chain_begin = prev;
 	ESP_LOGI(TAG, "rx_chain_begin = %p", rx_chain_begin);
