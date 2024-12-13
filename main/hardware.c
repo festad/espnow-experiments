@@ -559,17 +559,16 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	pvParameter->_tx_func_callback(&wifi_hardware_tx_func);
 	ESP_LOGW(TAG, "Starting to receive messages");
 
-	// ESP_LOGW(TAG, "wifi_hw_start");
-	// wifi_hw_start(1);
-	// vTaskDelay(200 / portTICK_PERIOD_MS);
-
+//	ESP_LOGW(TAG, "wifi_hw_start");
+//	wifi_hw_start(1);
+//	vTaskDelay(200 / portTICK_PERIOD_MS);
 
 
     ESP_LOGW(TAG, "switch channel to 0x96c");
     switch_channel(0x96c, 0);
     ESP_LOGW(TAG, "done switch channel to 0x96c");
     vTaskDelay(200 / portTICK_PERIOD_MS);
-//
+
 	//for (int i = 0; i < 2; i++) {
 		//uint8_t mac[6] = {0};
 		//if (esp_wifi_get_mac(i, mac) == ESP_OK) {
@@ -617,7 +616,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 				{
 					ESP_LOGW(TAG, "received message");
 					handle_rx_messages(pvParameter->_rx_callback);
-					transmit_one(0);
+					// transmit_one(0);
 				}
 				if(cause & 0x80)
 				{

@@ -30,12 +30,12 @@ void open_mac_rx_callback(wifi_promiscuous_pkt_t *packet)
     ESP_LOGI(TAG, "Calling open_mac_rx_callback");
     mac80211_frame *p = (mac80211_frame *)packet->payload;
 
-    if ((memcmp(recv_mac_addr, p->receiver_address, 6)) 
-    && (memcmp(BROADCAST_MAC, p->receiver_address, 6)))
-    {
-        ESP_LOGI(TAG, "Discarding packet from "MACSTR" to "MACSTR"", MAC2STR(p->transmitter_address), MAC2STR(p->receiver_address));
-        return;
-    }
+    // if ((memcmp(recv_mac_addr, p->receiver_address, 6)) 
+    // && (memcmp(BROADCAST_MAC, p->receiver_address, 6)))
+    // {
+    //     ESP_LOGI(TAG, "Discarding packet from "MACSTR" to "MACSTR"", MAC2STR(p->transmitter_address), MAC2STR(p->receiver_address));
+    //     return;
+    // }
     ESP_LOGI(TAG, "Accepted: from "MACSTR" to "MACSTR" type=%d, subtype=%d from_ds=%d to_ds=%d",MAC2STR(p->transmitter_address), MAC2STR(p->receiver_address), p->frame_control.type, p->frame_control.sub_type, p->frame_control.from_ds, p->frame_control.to_ds);  
 
     if(!reception_queue) 
@@ -46,7 +46,7 @@ void open_mac_rx_callback(wifi_promiscuous_pkt_t *packet)
 
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
-
+    ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(reception_queue, &packet_queue_copy, 0)))
     {
         ESP_LOGW(TAG, "MAC RX queue full!");
@@ -84,6 +84,7 @@ void mac_task(void *pvParameters)
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
             // ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, packet->rx_ctrl.sig_len - 4, ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, 24, ESP_LOG_INFO);
 
             switch(sta_state)
             {
@@ -123,7 +124,7 @@ void mac_task(void *pvParameters)
         {
             case IDLE:
                 ESP_LOGI(TAG, "Sending authentication frame!");
-                tx(beacon_raw, sizeof(beacon_raw));
+                // tx(beacon_raw, sizeof(beacon_raw));
                 break;
             case AUTHENTICATED:
                 ESP_LOGI(TAG, "TODO: sending association request frame");
