@@ -14,7 +14,7 @@ typedef struct hardware_mac_args
     tx_func_callback* _tx_func_callback;
 } hardware_mac_args;
 
-void transmit_one(uint8_t index);
+void transmit_one(uint8_t *metapacket, uint8_t index, int repeat);
 void setup_tx_buffers();
 void set_datarate(uint8_t datarate, uint32_t length);
 void tx_task(hardware_mac_args *pvParameter);

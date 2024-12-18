@@ -25,6 +25,30 @@ uint8_t beacon_raw[] = {
 	0xef, 0xbe, 0xad, 0xde // last 4 bytes are a place holder FCS, because it is calculated by the hardware itself
 };
 
+uint8_t deauth_packet[] = {
+	0x1e, 0x00, 0x00, 0x00, // Length
+	0x00, 0x00, 0x00, 0x00, // Empty word    
+    /*  0 - 1  */ 0xC0, 0x00,                         // type, subtype c0: deauth (a0: disassociate)
+    /*  2 - 3  */ 0x00, 0x00,                         // duration (SDK takes care of that)
+    /*  4 - 9  */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // reciever (target)
+    /* 10 - 15 */ 0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // source (ap)
+    /* 16 - 21 */ 0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // BSSID (ap)
+    /* 22 - 23 */ 0x00, 0x00,                         // fragment & squence number
+    /* 24 - 25 */ 0x01, 0x00                          // reason code (1 = unspecified reason)
+};
+
+unsigned char deauth_packet_2[] = {
+    0x1e, 0x0, 0xf, 0x0, 
+    0x0, 0x0, 0x0, 0x0,
+    0xc0, 0x0, 0x0, 0x0, 
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, 
+    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, 
+    0xa0, 0xd0, 0x7, 0x0, 
+    0xef, 0xbe, 0xad, 0xde
+};
+
+
 void open_mac_rx_callback(wifi_promiscuous_pkt_t *packet)
 {
     ESP_LOGI(TAG, "Calling open_mac_rx_callback");
@@ -46,9 +70,9 @@ void open_mac_rx_callback(wifi_promiscuous_pkt_t *packet)
 
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
-    ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 24, ESP_LOG_INFO);
-    ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    // ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 24, ESP_LOG_INFO);
+    // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(reception_queue, &packet_queue_copy, 0)))
     {
         ESP_LOGW(TAG, "MAC RX queue full!");

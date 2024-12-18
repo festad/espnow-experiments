@@ -177,12 +177,18 @@ void log_dma_item(dma_list_item *item)
 // };
 
 extern uint8_t beacon_raw[];
+extern uint8_t deauth_packet[];
+extern uint8_t deauth_packet_2[];
 
 uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
 uint8_t n_datarates = 9;
 
 extern int frequencies[];
 extern int n_frequencies;
+
+int less_frequencies[] = {0x96c, 0x985, 0x99e};
+int n_less_frequencies = 3;
+
 
 void set_datarate(uint8_t datarate, uint32_t length)
 {
@@ -220,12 +226,12 @@ void set_datarate(uint8_t datarate, uint32_t length)
 	}
 }
 
-void transmit_one(uint8_t index) {
+void transmit_one(uint8_t *metapacket, uint8_t index, int repeat) {
 	static int ctr = 0;
 	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
 	// uint32_t size_len = buffer_len + 32;
 	// The length of the payload is in the first 4 bytes of the packet
-	uint32_t payload_length = *((uint32_t*) beacon_raw);
+	uint32_t payload_length = *((uint32_t*) metapacket);
 	uint32_t packet_length = payload_length + 15;
 	uint32_t len_m_7 = packet_length - 7;
 	uint32_t len_m_15 = packet_length - 15; // = payload_length
@@ -242,14 +248,14 @@ void transmit_one(uint8_t index) {
 	tx_item->owner = 1;
 	tx_item->has_data = 1;
 	tx_item->length = len_m_7;
-	tx_item->packet = (uint32_t)beacon_raw;
+	tx_item->packet = (uint32_t)metapacket;
 	tx_item->next = NULL;
 
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
 	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
 	// write_register(MAC_TX_PLCP1_BASE, len_m_15);
-	set_datarate(datarates[ctr % n_datarates], len_m_15);
-	// set_datarate(datarates[0], len_m_15);
+	// set_datarate(datarates[ctr % n_datarates], len_m_15);
+	set_datarate(0x00, len_m_15);
 	write_register(MAC_TX_PLCP2_BASE, 0);
 	write_register(MAC_TX_DURATION_BASE, 0);
 	
@@ -258,7 +264,10 @@ void transmit_one(uint8_t index) {
     // write 0x120013bf
 	
 	// TRANSMIT!
-	write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
+	for(int i = 0; i < repeat; i++) {
+		write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
+	}
+	// write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
 	ESP_LOGW(TAG, "packet should have been sent");
 	++ctr;
 }
@@ -666,21 +675,31 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		//vTaskDelay(500 / portTICK_PERIOD_MS);
 	//}
 
+	static int counter = 0;
+
 	while(true)
 	{
+
+		int next_index = (counter+1) % n_less_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
+		int next_frequency = less_frequencies[next_index];
+		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
+		// Set the frequency
+		switch_channel(next_frequency, 0);
+		vTaskDelay(200 / portTICK_PERIOD_MS);
+
 		// Transmit 5 packets
-		for (int i = 0; i < 5; i++) 
+		for (int i = 0; i < 50; i++) 
 		{
 			ESP_LOGW(TAG, "transmitting hello"); 
-			transmit_one(0);
-			vTaskDelay(1000 / portTICK_PERIOD_MS);
+			transmit_one(deauth_packet_2, 0, 20);
+			vTaskDelay(200 / portTICK_PERIOD_MS);
 		}
 
 		// Listen for 10 seconds and transmit again
 		uint64_t start_time = esp_timer_get_time();
 		while(true)
 		{
-			if(esp_timer_get_time() - start_time > 10 * 1000*1000) 
+			if(esp_timer_get_time() - start_time > 5 * 1000*1000) 
 			{
 				break;
 			}
@@ -729,6 +748,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 				}
 			}
 		}
+		counter++;
 	}
 }
 
@@ -756,7 +776,7 @@ void reading_task(void)
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
             // ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, packet->rx_ctrl.sig_len - 4, ESP_LOG_INFO);
-            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
+            // ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
             free(packet);
         }
         else
