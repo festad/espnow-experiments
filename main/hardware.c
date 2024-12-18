@@ -3,6 +3,7 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
+#include "esp_netif.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "string.h"
@@ -87,6 +88,10 @@ inline uint32_t read_register(uint32_t address) {
 #define WIFI_BASE_RX_DSCR _MMIO_ADDR(0x600a4084)
 #define WIFI_MAC_BITMASK _MMIO_ADDR(0x600a4080)
 #define WIFI_MAC_INITMASK _MMIO_ADDR(0x600a407c)
+
+void wifi_hw_start(uint32_t param_1); // call with 2 for promiscuous mode
+void ic_set_vif(uint32_t param_1, int param_2, uint32_t mac_address_ptr, uint8_t param_4, uint8_t param_5, uint32_t param_6);
+
 
 
 typedef struct __attribute__((packed)) dma_list_item {
@@ -429,7 +434,7 @@ void handle_rx_messages(rx_callback rxcb)
 	while(current)
 	{
 		dma_list_item *next = current->next;
-		if (current->has_data)
+		if (current->has_data || !current->has_data) // ATTENTION, TODO, This is a tautology!!!
 		{
 			received++;
 
@@ -528,6 +533,8 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	tx_queue_resources = xSemaphoreCreateCounting(TX_RESOURCE_SEMAPHORE, TX_RESOURCE_SEMAPHORE);
 	assert(tx_queue_resources);
 
+    // ESP_ERROR_CHECK(esp_netif_init());
+    // ESP_ERROR_CHECK(esp_event_loop_create_default());
 
 	ESP_LOGW(TAG, "calling esp_wifi_init");
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
@@ -541,9 +548,20 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	ESP_ERROR_CHECK(esp_wifi_start());
 	ESP_LOGW(TAG, "done esp_wifi_start");
 
-	ESP_LOGW(TAG, "calling esp_wifi_set_promiscuous");
-	esp_wifi_set_promiscuous(true);
-	ESP_LOGW(TAG, "done esp_wifi_set_promiscuous");	
+//	ESP_LOGW(TAG, "calling esp_wifi_set_promiscuous");
+//	esp_wifi_set_promiscuous(true);
+//	ESP_LOGW(TAG, "done esp_wifi_set_promiscuous");	
+
+	char *broadcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+	ESP_LOGI(TAG, "Calling wifi_hw_start(2)");
+	wifi_hw_start(2);
+	ESP_LOGI(TAG, "Done calling wifi_hw_start(2)");
+	ESP_LOGI(TAG, "Calling ic_set_vif(3, 0, broadcast_mac, 3, 0, 0)");
+	ic_set_vif(3, 0, (uint32_t)broadcast_mac, 3, 0, 0);
+	ESP_LOGI(TAG, "Done calling ic_set_vif(3, 0, broadcast_mac, 3, 0, 0)");
+
+
 
 	ESP_LOGW(TAG, "setting up interrupt");
 	setup_interrupt();

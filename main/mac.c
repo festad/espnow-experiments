@@ -47,6 +47,8 @@ void open_mac_rx_callback(wifi_promiscuous_pkt_t *packet)
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
     ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 24, ESP_LOG_INFO);
+    ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(reception_queue, &packet_queue_copy, 0)))
     {
         ESP_LOGW(TAG, "MAC RX queue full!");
@@ -84,7 +86,7 @@ void mac_task(void *pvParameters)
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
             // ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, packet->rx_ctrl.sig_len - 4, ESP_LOG_INFO);
-            ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, 24, ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP("packet-content from mac_task", packet->payload, 24, ESP_LOG_INFO);
 
             switch(sta_state)
             {
