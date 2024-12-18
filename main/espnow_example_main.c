@@ -24,19 +24,19 @@
 // https://github.com/esp32-open-mac/esp32-open-mac/
 
 
-extern uint8_t beacon_raw[];
-extern int frequencies[];
-extern int n_frequencies;
+// extern uint8_t beacon_raw[];
+// extern int frequencies[];
+// extern int n_frequencies;
 
 
 static const char *TAG = "espnow_example";
 
-void wifi_hw_start(int disable_power_management);
+// void wifi_hw_start(int disable_power_management);
 
-hardware_mac_args open_hw_args = {
-    ._rx_callback = open_mac_rx_callback,
-    ._tx_func_callback = open_mac_tx_func_callback
-};
+// hardware_mac_args open_hw_args = {
+//     ._rx_callback = open_mac_rx_callback,
+//     ._tx_func_callback = open_mac_tx_func_callback
+// };
 
 void app_main(void)
 {
@@ -53,7 +53,7 @@ void app_main(void)
 	// ESP_LOGW(TAG, "done esp_netif_init");
 
     // args: osi_thread_run, name, stack size, &start_arg, priority, &thread->thread_handle, core
-    xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, &open_hw_args, 5, NULL, 0);
-    xTaskCreatePinnedToCore(&mac_task,           "open_mac",           4096, NULL,          3, NULL, 1);
+    xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL /* &open_hw_args*/ , 5, NULL, 0);
+    xTaskCreatePinnedToCore(&reading_task,           "open_mac",           4096, NULL,          3, NULL, 1);
 
 }
