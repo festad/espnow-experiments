@@ -3,6 +3,7 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
+#include "esp_timer.h"
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -167,99 +168,100 @@ void log_dma_item(dma_list_item *item)
 // uint8_t beacon_raw[] = {
 // 	0x4d, 0x00, 0x00, 0x00, // Length
 // 	0x00, 0x00, 0x00, 0x00, // Empty word
-// 	0xd0, 0x00, 0x00, 0x00, // Start of frame
+// 	0x80, 0x00, 0x00, 0x00, // Start of frame
 // 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 // 	0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8,
 // 	0xba, 0xde, 0xaf, 0xfe, 0x00, 0x00,
-// 	0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x64, 0x00, 0x31, 0x04, 0x00, 0x10, 0x45, 0x53, 0x50, 0x20, 0x62, 0x65, 0x61, 0x63, 0x6f, 0x6e, 0x20, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 0x03, 0x01, 0x01, 0x05, 0x04, 0x01, 0x02, 0x00, 0x00,
+// 	// 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x64, 0x00, 0x31, 0x04, 0x00, 0x10, 0x45, 0x53, 0x50, 0x20, 0x62, 0x65, 0x61, 0x63, 0x6f, 0x6e, 0x20, 0x66, 0x72, 0x61, 0x6d, 0x65, 0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 0x03, 0x01, 0x01, 0x05, 0x04, 0x01, 0x02, 0x00, 0x00,
 // 	0xef, 0xbe, 0xad, 0xde // last 4 bytes are a place holder FCS, because it is calculated by the hardware itself
 // };
 
-// extern uint8_t beacon_raw[];
+extern uint8_t beacon_raw[];
 
-// uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
-// uint8_t n_datarates = 9;
+uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
+uint8_t n_datarates = 9;
 
-// extern int frequencies[];
-// extern int n_frequencies;
+extern int frequencies[];
+extern int n_frequencies;
 
-// void set_datarate(uint8_t datarate, uint32_t length)
-// {
-// 	// If the datarate has the form 0x01, 0x02, ..., 0x0f then
-// 	// we are dealing with a simpler case where we just set
-// 	// the address 0x600a5488 to 0x0000pabc where abc is the length
-// 	// and p is the last four bits of the datarate parameter.
-// 	// Then we set the next word as 0x00020000 and the next three 
-// 	// to 0x0.
-// 	// If the datarate has the form 0x11, 0x12, ..., 0x17 then
-// 	// the case is slightly more complicated, we set
-// 	// 0x600a5488 to 0x02000000, the next word to 0x00020000 as before,
-// 	// the next one to 0x00111110 and the next one to 0x000abc0p
-// 	// where abc is the length and p is the last four bits of the datarate
-// 	// (so if the datarate is 0x11 then p is just 0b0001).
+void set_datarate(uint8_t datarate, uint32_t length)
+{
+	// If the datarate has the form 0x01, 0x02, ..., 0x0f then
+	// we are dealing with a simpler case where we just set
+	// the address 0x600a5488 to 0x0000pabc where abc is the length
+	// and p is the last four bits of the datarate parameter.
+	// Then we set the next word as 0x00020000 and the next three 
+	// to 0x0.
+	// If the datarate has the form 0x11, 0x12, ..., 0x17 then
+	// the case is slightly more complicated, we set
+	// 0x600a5488 to 0x02000000, the next word to 0x00020000 as before,
+	// the next one to 0x00111110 and the next one to 0x000abc0p
+	// where abc is the length and p is the last four bits of the datarate
+	// (so if the datarate is 0x11 then p is just 0b0001).
 
-// 	if((datarate & 0x10) == 0) {
-// 		// Set the first word to 0x0000pabc
-// 		write_register(0x600a5488, ((datarate & 0xf ) << 12) | (length & 0xfff));
-// 		// Set the second word to 0x00020000
-// 		write_register(0x600a548c, 0x00020000);
-// 		// Set the third word to 0x0
-// 		write_register(0x600a5490, 0);
-// 		// Set the fourth word to 0x0
-// 		write_register(0x600a5494, 0);
-// 	} else {
-// 		// Set the first word to 0x02000000
-// 		write_register(0x600a5488, 0x02000000);
-// 		// Set the second word to 0x00020000
-// 		write_register(0x600a548c, 0x00020000);
-// 		// Set the third word to 0x00111110
-// 		write_register(0x600a5490, 0x00111110);
-// 		// Set the fourth word to 0x000abc0p
-// 		write_register(0x600a5494, ((length & 0xfff) << 8) | (datarate & 0xf));
-// 	}
-// }
+	if((datarate & 0x10) == 0) {
+		// Set the first word to 0x0000pabc
+		write_register(0x600a5488, ((datarate & 0xf ) << 12) | (length & 0xfff));
+		// Set the second word to 0x00020000
+		write_register(0x600a548c, 0x00020000);
+		// Set the third word to 0x0
+		write_register(0x600a5490, 0);
+		// Set the fourth word to 0x0
+		write_register(0x600a5494, 0);
+	} else {
+		// Set the first word to 0x02000000
+		write_register(0x600a5488, 0x02000000);
+		// Set the second word to 0x00020000
+		write_register(0x600a548c, 0x00020000);
+		// Set the third word to 0x00111110
+		write_register(0x600a5490, 0x00111110);
+		// Set the fourth word to 0x000abc0p
+		write_register(0x600a5494, ((length & 0xfff) << 8) | (datarate & 0xf));
+	}
+}
 
-// void transmit_one(uint8_t index) {
-// 	static int ctr = 0;
-// 	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
-// 	// uint32_t size_len = buffer_len + 32;
-// 	// The length of the payload is in the first 4 bytes of the packet
-// 	uint32_t payload_length = *((uint32_t*) beacon_raw);
-// 	uint32_t packet_length = payload_length + 15;
-// 	uint32_t len_m_7 = packet_length - 7;
-// 	uint32_t len_m_15 = packet_length - 15; // = payload_length
-// 	// change the ssid, so that we're sure we're transmitting different packets
-// 	beacon_raw[38] = 'a' + (index % 26);
-// 	// owner 1, eof 1, unknown 6, lenght 12, size 12
-// 	// uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (buffer_len << 12) | size_len);
-// 	// Now I have to change this formula according to the rule of length - 7
-// 	// I want 
-// 	// 1100 0000 0001 0101 0100 0000 0000 0000
-// 	// uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (len_m_7 << 14));
-// 	// uint32_t dma_item_first = 0xc0154000;
-// 	// uint32_t dma_item[3] = {dma_item_first, ((uint32_t) beacon_raw), 0};
-// 	tx_item->owner = 1;
-// 	tx_item->has_data = 1;
-// 	tx_item->length = len_m_7;
-// 	tx_item->packet = (uint32_t)beacon_raw;
-// 	tx_item->next = NULL;
+void transmit_one(uint8_t index) {
+	static int ctr = 0;
+	// uint32_t buffer_len = sizeof(beacon_raw) - 8; // this includes the FCS
+	// uint32_t size_len = buffer_len + 32;
+	// The length of the payload is in the first 4 bytes of the packet
+	uint32_t payload_length = *((uint32_t*) beacon_raw);
+	uint32_t packet_length = payload_length + 15;
+	uint32_t len_m_7 = packet_length - 7;
+	uint32_t len_m_15 = packet_length - 15; // = payload_length
+	// change the ssid, so that we're sure we're transmitting different packets
+	// beacon_raw[38] = 'a' + (index % 26);
+	// owner 1, eof 1, unknown 6, lenght 12, size 12
+	// uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (buffer_len << 12) | size_len);
+	// Now I have to change this formula according to the rule of length - 7
+	// I want 
+	// 1100 0000 0001 0101 0100 0000 0000 0000
+	// uint32_t dma_item_first = ((1 << 31) | (1 << 30) | (len_m_7 << 14));
+	// uint32_t dma_item_first = 0xc0154000;
+	// uint32_t dma_item[3] = {dma_item_first, ((uint32_t) beacon_raw), 0};
+	tx_item->owner = 1;
+	tx_item->has_data = 1;
+	tx_item->length = len_m_7;
+	tx_item->packet = (uint32_t)beacon_raw;
+	tx_item->next = NULL;
 
-// 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
-// 	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
-// 	// write_register(MAC_TX_PLCP1_BASE, len_m_15);
-// 	set_datarate(datarates[ctr % n_datarates], len_m_15);
-// 	write_register(MAC_TX_PLCP2_BASE, 0);
-// 	write_register(MAC_TX_DURATION_BASE, 0);
+	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
+	write_register(MAC_TX_PLCP0_BASE, (((uint32_t)tx_item) & 0xfffff) | 0x00600000);
+	// write_register(MAC_TX_PLCP1_BASE, len_m_15);
+	set_datarate(datarates[ctr % n_datarates], len_m_15);
+	// set_datarate(datarates[0], len_m_15);
+	write_register(MAC_TX_PLCP2_BASE, 0);
+	write_register(MAC_TX_DURATION_BASE, 0);
 	
-// 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0x02000000);
-// 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0x00000300);
-//     // write 0x120013bf
+	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0x02000000);
+	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0x00000300);
+    // write 0x120013bf
 	
-// 	// TRANSMIT!
-// 	write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
-// 	ESP_LOGW(TAG, "packet should have been sent");
-// 	++ctr;
-// }
+	// TRANSMIT!
+	write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
+	ESP_LOGW(TAG, "packet should have been sent");
+	++ctr;
+}
 
 void IRAM_ATTR wifi_interrupt_handler(void* args) 
 {
@@ -429,7 +431,7 @@ void update_rx_chain()
 }
 
 
-void on_recieve(wifi_promiscuous_pkt_t *packet)
+void on_receive(wifi_promiscuous_pkt_t *packet)
 {
     // ESP_LOGI(TAG, "Calling open_mac_rx_callback");
     mac80211_frame *p = (mac80211_frame *)packet->payload;
@@ -618,8 +620,8 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 	ESP_LOGW(TAG, "Setting up the rx chaing");
 	setup_rx_chain();
-	// ESP_LOGW(TAG, "setting up buffers");
-	// setup_tx_buffers();
+	ESP_LOGW(TAG, "setting up buffers");
+	setup_tx_buffers();
 
 	// pvParameter->_tx_func_callback(&wifi_hardware_tx_func);
 	ESP_LOGW(TAG, "Starting to receive messages");
@@ -666,47 +668,65 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 	while(true)
 	{
-		hardware_queue_entry_t queue_entry;
-		if(xQueueReceive(hardware_event_queue, &(queue_entry), 10))
+		// Transmit 5 packets
+		for (int i = 0; i < 5; i++) 
 		{
-			if(queue_entry.type == RX_ENTRY)
+			ESP_LOGW(TAG, "transmitting hello"); 
+			transmit_one(0);
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
+		}
+
+		// Listen for 10 seconds and transmit again
+		uint64_t start_time = esp_timer_get_time();
+		while(true)
+		{
+			if(esp_timer_get_time() - start_time > 10 * 1000*1000) 
 			{
-				uint32_t cause = queue_entry.content.rx.interrupt_received;
-				ESP_LOGW(TAG, "interrupt received: 0x%08lx", cause);
-				if(cause & 0x8000)
-				{
-					ESP_LOGW(TAG, "panic watchdog()");
-				}
-				if(cause & 0x1000024)
-				{
-					ESP_LOGW(TAG, "received message");
-					// handle_rx_messages(pvParameter->_rx_callback);
-					handle_rx_messages(&on_recieve);
-					// transmit_one(0);
-				}
-				if(cause & 0x80)
-				{
-					ESP_LOGW(TAG, "lmacPostTxComplete");
-				}
-				if(cause & 0x80000)
-				{
-					ESP_LOGW(TAG, "lmacProcessAllTxTimeout");
-				}
-				if(cause & 0x100)
-				{
-					ESP_LOGW(TAG, "lmacProcessCollisions");
-				}
-				// xSemaphoreGive(rx_queue_resources);
+				break;
 			}
-			// else if (queue_entry.type == TX_ENTRY)
-			// {
-			// 	transmit_one(0);
-			// 	// free
-			// 	xSemaphoreGive(tx_queue_resources);
-			// }
-			else
+
+			hardware_queue_entry_t queue_entry;
+			if(xQueueReceive(hardware_event_queue, &(queue_entry), 10))
 			{
-				ESP_LOGI(TAG, "unknown queue type");
+				if(queue_entry.type == RX_ENTRY)
+				{
+					uint32_t cause = queue_entry.content.rx.interrupt_received;
+					ESP_LOGW(TAG, "interrupt received: 0x%08lx", cause);
+					if(cause & 0x8000)
+					{
+						ESP_LOGW(TAG, "panic watchdog()");
+					}
+					if(cause & 0x1000024)
+					{
+						ESP_LOGW(TAG, "received message");
+						// handle_rx_messages(pvParameter->_rx_callback);
+						handle_rx_messages(&on_receive);
+						// transmit_one(0);
+					}
+					if(cause & 0x80)
+					{
+						ESP_LOGW(TAG, "lmacPostTxComplete");
+					}
+					if(cause & 0x80000)
+					{
+						ESP_LOGW(TAG, "lmacProcessAllTxTimeout");
+					}
+					if(cause & 0x100)
+					{
+						ESP_LOGW(TAG, "lmacProcessCollisions");
+					}
+					// xSemaphoreGive(rx_queue_resources);
+				}
+				// else if (queue_entry.type == TX_ENTRY)
+				// {
+				// 	transmit_one(0);
+				// 	// free
+				// 	xSemaphoreGive(tx_queue_resources);
+				// }
+				else
+				{
+					ESP_LOGI(TAG, "unknown queue type");
+				}
 			}
 		}
 	}
