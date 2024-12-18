@@ -451,7 +451,7 @@ void on_recieve(wifi_promiscuous_pkt_t *packet)
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
+    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
     {
@@ -632,7 +632,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
     ESP_LOGW(TAG, "switch channel to 0x96c");
     switch_channel(0x96c, 0);
     ESP_LOGW(TAG, "done switch channel to 0x96c");
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(5*200 / portTICK_PERIOD_MS);
 
 	//for (int i = 0; i < 2; i++) {
 		//uint8_t mac[6] = {0};
@@ -736,7 +736,7 @@ void reading_task(void)
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
             // ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, packet->rx_ctrl.sig_len - 4, ESP_LOG_INFO);
-            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 100, ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
             free(packet);
         }
         else
