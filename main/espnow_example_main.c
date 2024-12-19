@@ -54,6 +54,6 @@ void app_main(void)
 
     // args: osi_thread_run, name, stack size, &start_arg, priority, &thread->thread_handle, core
     xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL /* &open_hw_args*/ , 5, NULL, 0);
-    xTaskCreatePinnedToCore(&reading_task,           "open_mac",           4096, NULL,          3, NULL, 1);
+    xTaskCreatePinnedToCore(&reading_task,           "open_mac",           4096, NULL,          5, NULL, 1);
 
 }

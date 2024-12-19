@@ -93,7 +93,7 @@ inline uint32_t read_register(uint32_t address) {
 
 void wifi_hw_start(uint32_t param_1); // call with 2 for promiscuous mode
 void ic_set_vif(uint32_t param_1, int param_2, uint32_t mac_address_ptr, uint8_t param_4, uint8_t param_5, uint32_t param_6);
-
+void lmacProcessTxComplete(void);
 
 
 typedef struct __attribute__((packed)) dma_list_item {
@@ -299,14 +299,17 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 	// 	queue_entry.content.rx.interrupt_received = cause;
 	// 	xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
 	// }
-	hardware_queue_entry_t queue_entry;
-	queue_entry.type = RX_ENTRY;
-	queue_entry.content.rx.interrupt_received = cause;
-	bool higher_prio_task_woken = false;
-	xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
-	if (higher_prio_task_woken)
+	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
 	{
-		portYIELD_FROM_ISR();
+		hardware_queue_entry_t queue_entry;
+		queue_entry.type = RX_ENTRY;
+		queue_entry.content.rx.interrupt_received = cause;
+		bool higher_prio_task_woken = false;
+		xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
+		if (higher_prio_task_woken)
+		{
+			portYIELD_FROM_ISR();
+		}
 	}	
 }
 
@@ -462,7 +465,7 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
+    // ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
     {
@@ -688,7 +691,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		vTaskDelay(200 / portTICK_PERIOD_MS);
 
 		// Transmit 5 packets
-		for (int i = 0; i < 50; i++) 
+		for (int i = 0; i < 5; i++) 
 		{
 			ESP_LOGW(TAG, "transmitting hello"); 
 			transmit_one(deauth_packet_2, 0, 20);
@@ -725,6 +728,8 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 					if(cause & 0x80)
 					{
 						ESP_LOGW(TAG, "lmacPostTxComplete");
+						lmacProcessTxComplete();
+						ESP_LOGW(TAG, "lmacPostTxComplete done");
 					}
 					if(cause & 0x80000)
 					{
@@ -734,7 +739,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 					{
 						ESP_LOGW(TAG, "lmacProcessCollisions");
 					}
-					// xSemaphoreGive(rx_queue_resources);
+					xSemaphoreGive(rx_queue_resources);
 				}
 				// else if (queue_entry.type == TX_ENTRY)
 				// {
@@ -775,8 +780,7 @@ void reading_task(void)
             ESP_LOGI(TAG, "xQueueReceive correctly received from packet_reception_queue");
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
-            // ESP_LOG_BUFFER_HEXDUMP("packet-content", packet->payload, packet->rx_ctrl.sig_len - 4, ESP_LOG_INFO);
-            // ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
             free(packet);
         }
         else
