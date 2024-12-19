@@ -294,23 +294,16 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 	volatile bool tmp = false;
 	// if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
 	// {
-	// 	hardware_queue_entry_t queue_entry;
-	// 	queue_entry.type = RX_ENTRY;
-	// 	queue_entry.content.rx.interrupt_received = cause;
-	// 	xQueueSendFromISR(hardware_event_queue, &queue_entry, NULL);
-	// }
-	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
+	hardware_queue_entry_t queue_entry;
+	queue_entry.type = RX_ENTRY;
+	queue_entry.content.rx.interrupt_received = cause;
+	bool higher_prio_task_woken = false;
+	xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
+	if (higher_prio_task_woken)
 	{
-		hardware_queue_entry_t queue_entry;
-		queue_entry.type = RX_ENTRY;
-		queue_entry.content.rx.interrupt_received = cause;
-		bool higher_prio_task_woken = false;
-		xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
-		if (higher_prio_task_woken)
-		{
-			portYIELD_FROM_ISR();
-		}
-	}	
+		portYIELD_FROM_ISR();
+	}
+	// }	
 }
 
 // If I get to overwrite &s_intr_handlers+0x8 to point to wifi_interrupt_handler
@@ -739,7 +732,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 					{
 						ESP_LOGW(TAG, "lmacProcessCollisions");
 					}
-					xSemaphoreGive(rx_queue_resources);
+					// xSemaphoreGive(rx_queue_resources);
 				}
 				// else if (queue_entry.type == TX_ENTRY)
 				// {
