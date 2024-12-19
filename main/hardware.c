@@ -19,7 +19,7 @@
 #include "80211.h"
 // #include "proprietary.h"
 #include "mac.h"
-
+#include "tree.h"
 
 #include <inttypes.h>
 
@@ -569,6 +569,14 @@ void handle_rx_messages(rx_callback rxcb)
 // 	return true;
 // }
 
+void print_couple_ap_sta(const void *data)
+{
+	const CoupleAP_DEV *couple = (const CoupleAP_DEV *)data;
+	ESP_LOGI(TAG, "Access Point: ");
+	ESP_LOGI(TAG, "MAC: %02x:%02x:%02x:%02x:%02x:%02x", couple->ap.mac[0], couple->ap.mac[1], couple->ap.mac[2], couple->ap.mac[3], couple->ap.mac[4], couple->ap.mac[5]);
+	ESP_LOGI(TAG, "Device: ");
+	ESP_LOGI(TAG, "MAC: %02x:%02x:%02x:%02x:%02x:%02x", couple->dev.mac[0], couple->dev.mac[1], couple->dev.mac[2], couple->dev.mac[3], couple->dev.mac[4], couple->dev.mac[5]);
+}
 
 void wifi_hardware_task(hardware_mac_args *pvParameter) 
 {
@@ -635,6 +643,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 //	wifi_hw_start(1);
 //	vTaskDelay(200 / portTICK_PERIOD_MS);
 
+	simulation(print_couple_ap_sta);
 
     ESP_LOGW(TAG, "switch channel to 0x96c");
     switch_channel(0x96c, 0);
