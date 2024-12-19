@@ -197,6 +197,14 @@ void process_tree(TreeNode *root, process_couple_func_t process_couple_func)
 	process_tree(root->left_child, process_couple_func);
 
 	LinkedList *current = root->associated;
+    if(!current)
+    {
+        MACAddress broadcast = {
+            .mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+        };
+        CoupleAP_DEV couple = {*(MACAddress *)root->data, broadcast};
+        process_couple_func(&couple);
+    }
 	while (current)
 	{
 		CoupleAP_DEV couple = {*(MACAddress *)root->data, *(MACAddress *)current->data};
@@ -219,6 +227,8 @@ void simulation(process_couple_func_t cb)
 	MACAddress access_point2 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x56}};
 	MACAddress access_point3 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x57}};
 	MACAddress access_point4 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x54}};
+    MACAddress access_point5 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x53}};
+    MACAddress access_point6 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x52}};
 
 	MACAddress device1 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x58}};
 	MACAddress device2 = {{0x00, 0x11, 0x22, 0x33, 0x44, 0x59}};
@@ -249,6 +259,8 @@ void simulation(process_couple_func_t cb)
 	insert_node(&root, &access_point2, sizeof(MACAddress), NULL, compare_mac_addresses);
 	insert_node(&root, &access_point3, sizeof(MACAddress), NULL, compare_mac_addresses);
 	insert_node(&root, &access_point4, sizeof(MACAddress), NULL, compare_mac_addresses);
+    insert_node(&root, &access_point5, sizeof(MACAddress), NULL, compare_mac_addresses);
+    insert_node(&root, &access_point6, sizeof(MACAddress), NULL, compare_mac_addresses);
 
 
 	TreeNode *ap_node = find_node(root, &access_point1, compare_mac_addresses);

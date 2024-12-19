@@ -192,6 +192,8 @@ uint8_t custom_deauth_packet[] = {
     0xef, 0xbe, 0xad, 0xde
 };
 
+TreeNode *network = NULL;
+
 uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
 uint8_t n_datarates = 9;
 
@@ -718,15 +720,15 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		switch_channel(next_frequency, 0);
 		vTaskDelay(200 / portTICK_PERIOD_MS);
 
-		// Transmit 5 packets
-		for (int i = 0; i < 5; i++) 
-		{
-			ESP_LOGW(TAG, "transmitting hello"); 
-			transmit_one(deauth_packet_2, 0, 20);
-			vTaskDelay(200 / portTICK_PERIOD_MS);
-		}
+		// // Transmit 5 packets
+		// for (int i = 0; i < 5; i++) 
+		// {
+		// 	ESP_LOGW(TAG, "transmitting hello"); 
+		// 	transmit_one(deauth_packet_2, 0, 1);
+		// 	vTaskDelay(200 / portTICK_PERIOD_MS);
+		// }
 
-		simulation(send_deauth_from_to);
+		// simulation(send_deauth_from_to);
 
 		// Listen for 10 seconds and transmit again
 		uint64_t start_time = esp_timer_get_time();
@@ -793,7 +795,7 @@ void reading_task(void)
 {
     ESP_LOGI(TAG, "Starting reading_task");
 
-    packet_reception_queue = xQueueCreate(20, sizeof(wifi_promiscuous_pkt_t *));
+    packet_reception_queue = xQueueCreate(200, sizeof(wifi_promiscuous_pkt_t *));
     // assert(reception_queue);
 
     // openmac_sta_state_t sta_state = IDLE;
@@ -811,6 +813,22 @@ void reading_task(void)
             mac80211_frame *p = (mac80211_frame *) packet->payload;
 
             ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
+
+			// If the packet is a beacon, then we add the AP to the network
+			if(p->frame_control.type == 0 && p->frame_control.sub_type == 8)
+			{
+				// Skip the first 10 bytes and copy the 6 bytes of the BSSID
+				uint8_t *bssid = p->transmitter_address;
+				MACAddress ap = {
+					.mac = {bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}
+				};
+				insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
+			}
+			ESP_LOGI(TAG, "Network:");
+			process_tree(network, print_couple_ap_sta);
+
+			process_tree(network, send_deauth_from_to);
+
             free(packet);
         }
         else
