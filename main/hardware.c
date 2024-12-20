@@ -184,7 +184,8 @@ extern uint8_t deauth_packet_2[];
 uint8_t custom_deauth_packet[] = {
     0x1e, 0x0, 0xf, 0x0, 
     0x0, 0x0, 0x0, 0x0,
-    0xc0, 0x0, 0x0, 0x0, 
+    0xc0, 0x0, /*duration*/ 0xff, 0xff, // The duration is unfortunately reset by the hardware,
+										// in facts in wireshark it is 0x0000
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // Destination
     0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
     0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
@@ -280,7 +281,7 @@ void transmit_one(uint8_t *metapacket, uint8_t index, int repeat) {
 	// TRANSMIT!
 	for(int i = 0; i < repeat; i++) {
 		write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
-		esp_rom_delay_us(1000*10);
+		esp_rom_delay_us(1000*32); /* Maximum wait for a deauthentication*/
 	}
 	// write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
 	ESP_LOGW(TAG, "packet should have been sent");
