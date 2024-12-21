@@ -193,6 +193,34 @@ uint8_t custom_deauth_packet[] = {
     0xef, 0xbe, 0xad, 0xde
 };
 
+unsigned char custom_probe_request_packet[] = 
+{
+	0x8b, 0x0, 0xf, 0x0, 
+	0x0, 0x0, 0x0, 0x0,
+	0x40, 0x0, 0x0, 0x0, 
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+	0x96, 0x29, 0x4a, 0xad, 0x7d, 0xfc, 
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+	0x90, 0x7e, 
+	// 32 bytes above
+	// Tagged parameters
+	0x0, 0x0, // Empty SSID
+	0x1, 0x4, 0x2, 0x4, 0xb, 0x16, 
+	0x32, 0x8, 0xc, 0x12, 0x18, 0x24, 
+	0x30, 0x48, 0x60, 0x6c, 
+	// 32+18 bytes above
+	0x3, 0x1, 0x1, // Channel, change custom...[52] to change the channel
+	0x2d, 0x1a, 0x2d, 0x1, 0x13, 0xff, 
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 
+	0xbf, 0xc, 0x92, 0x71, 0x90, 0x33, 0xfe, 0xff, 0x86, 0x1, 
+	0xfe, 0xff, 0x86, 0x1, 0xdd, 0x7, 0x0, 0x50, 0xf2, 0x8, 0x0, 
+	0x21, 0x0, 0x7f, 0xa, 0x0, 0x0, 0xa, 0x82, 0x0, 0x40, 0x0, 0x0, 
+	0x0, 0x1, 0xff, 0x3, 0x2, 0x0, 0x44, 0xdd, 0xa, 0x50, 0x6f, 0x9a, 
+	0x16, 0x3, 0x1, 0x3, 0x65, 0x1, 0x1, 0xdd, 0x8, 0x8c, 0xfd, 0xf0, 
+	0x1, 0x1, 0x2, 0x1, 0x0, 0x60, 0x1c, 0x40, 0xef
+};
+
 TreeNode *network = NULL;
 
 uint8_t datarates[] = {0x01, 0x03, 0x05, 0x09, 0x0b, 0x0f, 0x11, 0x14, 0x17};
@@ -474,7 +502,7 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    // ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
+    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
     {
@@ -607,6 +635,77 @@ void send_deauth_from_to(const void *data)
 	transmit_one(custom_deauth_packet, 0, 20);
 }
 
+void listen_to(int seconds)
+{
+	// Listen for 10 seconds and transmit again
+	uint64_t start_time = esp_timer_get_time();
+	while(true)
+	{
+		if(esp_timer_get_time() - start_time > 5 * 1000*1000) 
+		{
+			break;
+		}
+
+		hardware_queue_entry_t queue_entry;
+		if(xQueueReceive(hardware_event_queue, &(queue_entry), 10))
+		{
+			if(queue_entry.type == RX_ENTRY)
+			{
+				uint32_t cause = queue_entry.content.rx.interrupt_received;
+				ESP_LOGW(TAG, "interrupt received: 0x%08lx", cause);
+				if(cause & 0x8000)
+				{
+					ESP_LOGW(TAG, "panic watchdog()");
+				}
+				if(cause & 0x1000024)
+				{
+					ESP_LOGW(TAG, "received message");
+					// handle_rx_messages(pvParameter->_rx_callback);
+					handle_rx_messages(&on_receive);
+					// transmit_one(0);
+				}
+				if(cause & 0x80)
+				{
+					ESP_LOGW(TAG, "lmacPostTxComplete");
+					lmacProcessTxComplete();
+					ESP_LOGW(TAG, "lmacPostTxComplete done");
+				}
+				if(cause & 0x80000)
+				{
+					ESP_LOGW(TAG, "lmacProcessAllTxTimeout");
+				}
+				if(cause & 0x100)
+				{
+					ESP_LOGW(TAG, "lmacProcessCollisions");
+				}
+				// xSemaphoreGive(rx_queue_resources);
+			}
+			// else if (queue_entry.type == TX_ENTRY)
+			// {
+			// 	transmit_one(0);
+			// 	// free
+			// 	xSemaphoreGive(tx_queue_resources);
+			// }
+			else
+			{
+				ESP_LOGI(TAG, "unknown queue type");
+			}
+		}
+	}
+}
+
+void send_and_receive_probes(int channel, int seconds)
+{
+	// Switch to the frequency
+	switch_channel(frequencies[channel], 0);
+
+	// Send probe requests
+	custom_probe_request_packet[52] = channel;
+
+	// Listen for 10 seconds and transmit again
+	listen_to(seconds);
+}
+
 void wifi_hardware_task(hardware_mac_args *pvParameter) 
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -708,7 +807,6 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		//ESP_LOGW(TAG, "still alive");
 		//vTaskDelay(500 / portTICK_PERIOD_MS);
 	//}
-
 	static int counter = 0;
 
 	while(true)
@@ -731,62 +829,9 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 		// simulation(send_deauth_from_to);
 
-		// Listen for 10 seconds and transmit again
-		uint64_t start_time = esp_timer_get_time();
-		while(true)
-		{
-			if(esp_timer_get_time() - start_time > 5 * 1000*1000) 
-			{
-				break;
-			}
-
-			hardware_queue_entry_t queue_entry;
-			if(xQueueReceive(hardware_event_queue, &(queue_entry), 10))
-			{
-				if(queue_entry.type == RX_ENTRY)
-				{
-					uint32_t cause = queue_entry.content.rx.interrupt_received;
-					ESP_LOGW(TAG, "interrupt received: 0x%08lx", cause);
-					if(cause & 0x8000)
-					{
-						ESP_LOGW(TAG, "panic watchdog()");
-					}
-					if(cause & 0x1000024)
-					{
-						ESP_LOGW(TAG, "received message");
-						// handle_rx_messages(pvParameter->_rx_callback);
-						handle_rx_messages(&on_receive);
-						// transmit_one(0);
-					}
-					if(cause & 0x80)
-					{
-						ESP_LOGW(TAG, "lmacPostTxComplete");
-						lmacProcessTxComplete();
-						ESP_LOGW(TAG, "lmacPostTxComplete done");
-					}
-					if(cause & 0x80000)
-					{
-						ESP_LOGW(TAG, "lmacProcessAllTxTimeout");
-					}
-					if(cause & 0x100)
-					{
-						ESP_LOGW(TAG, "lmacProcessCollisions");
-					}
-					// xSemaphoreGive(rx_queue_resources);
-				}
-				// else if (queue_entry.type == TX_ENTRY)
-				// {
-				// 	transmit_one(0);
-				// 	// free
-				// 	xSemaphoreGive(tx_queue_resources);
-				// }
-				else
-				{
-					ESP_LOGI(TAG, "unknown queue type");
-				}
-			}
-		}
-		counter++;
+		// // Listen for 5 seconds
+		// listen_to(5);
+		send_and_receive_probes(0, 5);
 	}
 }
 
