@@ -35,6 +35,7 @@ void insert_list(LinkedList **head, const void *data, uint8_t data_size, copy_fu
 typedef struct MACAddress
 {
 	unsigned char mac[6];
+	uint8_t channel;
 } MACAddress;
 
 typedef struct CoupleAP_DEV

