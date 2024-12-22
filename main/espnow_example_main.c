@@ -51,6 +51,7 @@ void app_main(void)
 	// ESP_LOGW(TAG, "calling esp_netif_init");
 	// ESP_ERROR_CHECK(esp_netif_init());
 	// ESP_LOGW(TAG, "done esp_netif_init");
+    // xTaskCreate(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL, 5, NULL);
 
     // args: osi_thread_run, name, stack size, &start_arg, priority, &thread->thread_handle, core
     xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL /* &open_hw_args*/ , 5, NULL, 0);

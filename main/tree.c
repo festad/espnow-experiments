@@ -281,3 +281,65 @@ void simulation(process_couple_func_t cb)
 	process_tree(root, cb);
     
 }
+
+MyQueue *create_queue(const void *data, uint8_t data_size, copy_func_t copy_func)
+{
+	MyQueue *queue = malloc(sizeof(MyQueue));
+	if (!queue) return NULL;
+
+	queue->data = malloc(data_size);
+	if (!queue->data)
+	{
+		free(queue);
+		return NULL;
+	}
+	memcpy(queue->data, data, data_size);
+
+	queue->next = NULL;
+
+	return queue;
+}
+
+void destroy_queue(MyQueue *queue, destroy_func_t destroy_func)
+{
+	if (!queue) return;
+
+	if (queue->next) 
+	{
+		destroy_queue(queue->next, destroy_func);
+	}
+	if (destroy_func)
+	{
+		destroy_func(queue->data);
+	}
+	else
+	{
+		free(queue->data);
+	}
+
+	free(queue);
+}
+
+void enqueue(MyQueue **head, const void *data, uint8_t data_size, copy_func_t copy_func)
+{
+	if (!*head)
+	{
+		*head = create_queue(data, data_size, copy_func);
+		return;
+	}
+
+	enqueue(&(*head)->next, data, data_size, copy_func);
+}
+
+void *dequeue(MyQueue **head)
+{
+	if (!*head) return NULL;
+
+	MyQueue *current = *head;
+	*head = current->next;
+
+	void *data = current->data;
+	free(current);
+
+	return data;
+}

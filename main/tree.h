@@ -18,6 +18,12 @@ typedef struct LinkedList
 	struct LinkedList *next;
 } LinkedList;
 
+typedef struct MyQueue
+{
+	void *data;
+	struct MyQueue *next;
+} MyQueue;
+
 typedef void *(*copy_func_t)(const void *src);
 typedef void (*destroy_func_t)(void *data);
 typedef int (*compare_func_t)(const void *a, const void *b);
@@ -31,6 +37,11 @@ TreeNode *find_node(TreeNode *root, const void *data, compare_func_t compare_fun
 LinkedList *create_list(const void *data, uint8_t data_size, copy_func_t copy_func);
 void destroy_list(LinkedList *list, destroy_func_t destroy_func);
 void insert_list(LinkedList **head, const void *data, uint8_t data_size, copy_func_t copy_func);
+
+MyQueue *create_queue(const void *data, uint8_t data_size, copy_func_t copy_func);
+void destroy_queue(MyQueue *queue, destroy_func_t destroy_func);
+void enqueue(MyQueue **head, const void *data, uint8_t data_size, copy_func_t copy_func);
+void *dequeue(MyQueue **head);
 
 typedef struct MACAddress
 {
