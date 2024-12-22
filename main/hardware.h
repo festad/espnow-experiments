@@ -1,5 +1,6 @@
 #pragma once
 #include "esp_wifi.h"
+#include "80211.h"
 
 #define _MMIO_DWORD(mem_addr) (*(volatile uint32_t *)(mem_addr))
 #define _MMIO_ADDR(mem_addr) ((volatile uint32_t*)(mem_addr))
@@ -20,3 +21,4 @@ void set_datarate(uint8_t datarate, uint32_t length);
 void tx_task(hardware_mac_args *pvParameter);
 void wifi_hardware_task(hardware_mac_args *pvParameter);
 void reading_task(void);
+void treat_mac80211_frame(mac80211_frame *p);

