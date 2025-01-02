@@ -1,7 +1,8 @@
-\documentclass{article}
+\documentclass[8pt, twoside, a4paper]{article}
 \usepackage{graphicx}
 \usepackage{tikz}
 \usepackage{tikzscale}
+\usepackage{parskip}
 
 
 \begin{document}
@@ -24,15 +25,20 @@
 	\label{fig:exmemmap}
 \end{figure}
 
-\begin{figure}[ht]
-	\centering
-	\includegraphics[scale=0.8]{box}
-	\caption{A second example}
-	\label{fig:exmemmap2}
-\end{figure}
-
 Before rebasing
 
+\begin{figure}[ht]
+	\centering
+	\includegraphics[scale=0.6]{cor}
+	\caption{A grid with addresses}
+	\label{fig:cor}
+\end{figure}
+
+\input{intro.tex}
+
+\section{Hooking}
+
+\input{hooking.tex}
 
 \end{document}
 
