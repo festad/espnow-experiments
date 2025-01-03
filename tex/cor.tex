@@ -39,7 +39,7 @@
   \begin{scope}[shift={(#1, #2)}]
     \node[anchor=mid, align=center] at (\xsize, -\y) {\text{\size}};
     \node[anchor=mid, anchor=north, 
-	  align=left, text width=4.5cm, 
+	  align=left, text width=8cm, 
 	  font=\scriptsize,
 	  inner sep=0pt] at (\xdesc, -\y+1.25) {\description};
   \end{scope}
@@ -55,11 +55,11 @@ peripherals and are written to manipulate those peripherals,\\
 e.g.  address \texttt{0x600a4d6c} is written to when an 802.11 frame is \\ 
 sent over the network
 }
-\memgrid{0}{0}{15}{4}{2}{5}{3}{0x600a0000}{0x600cffff}
-\memgridtwo{0}{0}{9}{1.5}{12.5}{64KiB}{\descperiph}
+\memgrid{0}{0}{20}{4}{2}{10}{3}{0x600a0000}{0x600cffff}
+\memgridtwo{0}{0}{4+4+1}{1.5}{15}{64KiB}{\descperiph}
 
-\memgrid{0}{-6}{15}{4}{2}{5}{3}{0x40000000}{0x4004ffff}
-\memgridtwo{0}{-6}{9}{1.5}{12.5}{32KiB}{Rom}
+\memgrid{0}{-6}{20}{4}{2}{10}{3}{0x40000000}{0x4004ffff}
+\memgridtwo{0}{-6}{4+4+1}{1.5}{15}{32KiB}{Rom}
 
 \end{tikzpicture}
 
