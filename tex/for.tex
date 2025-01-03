@@ -1,0 +1,22 @@
+\documentclass{standalone}
+
+\usepackage{tikz}
+
+\usepackage{parskip}
+\usepackage{fullpage}
+
+\begin{document}
+
+\tikzset{
+	circ/.style = {circle, draw, fill=.!10, font=\sffamily\bfseries, minimum size=2cm},
+}
+
+
+\begin{tikzpicture}
+	\foreach[count=\i] \x in {Z,Y,...,R} {
+		\node[olive, circ] (ltr-\i) at (\i*3, 0) {\x};
+		% Here ++ and + are the same
+		\draw[->] (ltr-\i.east) -- +(1, 0);
+	}
+\end{tikzpicture}
+\end{document}
