@@ -31,7 +31,7 @@
 }
 
 \newsavebox\mybox
-
+\newsavebox\mysndbox
 
 % Define function box macro
 \newcommand{\functionBox}[7]{%
@@ -61,7 +61,7 @@
 \begin{document}
 
 \begin{lrbox}{\mybox}
-\begin{lstlisting}[style=CStyle]
+\begin{lstlisting}
 #include <stdio.h>
 int main(void)
 {
@@ -70,6 +70,12 @@ int main(void)
 \end{lstlisting}
 \end{lrbox}
 
+\begin{lrbox}{\mysndbox}
+\begin{lstlisting}
+c.mv    a0, s0
+c.jalr  a5
+\end{lstlisting}
+\end{lrbox}
 
 
 \begin{tikzpicture}[>=stealth]
@@ -85,7 +91,7 @@ int main(void)
 %
   % Create boxes with pseudocode
   \functionBox{0}{0}{6.0}{0.8}{3.0}{Function A}{\usebox\mybox}
-  %\functionBox{0}{-5}{6.0}{0.8}{3.0}{Function B}{\functionAPseudocode}
+  \functionBox{0}{-5}{6.0}{0.8}{3.0}{Function B}{\usebox\mysndbox}
 
   % Connect the boxes
   \draw[->] (3, -3.8) -- (3, -5);
