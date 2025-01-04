@@ -177,11 +177,14 @@ directly original assembly code.
 	% using to for the edge between the nodes with in and out angles and text auto sloped
 	\draw[->] (nfunmain) to[out=-100,in=100] node[auto,sloped] {} (nfunactivation);
 	\draw[->, color=red] (nfunactivation) to[out=90,in=200] node[auto,sloped] {Injecting assembly} (nfunprocesstxq);
-	\draw[->, color=red] (nfunprocesstxq) to[out=0, in=0, looseness=0.8] node[auto,sloped] {} (nfunprocesstxqaft);
+	\draw[->, color=red] (nfunprocesstxq) to[out=20, in=20, looseness=0.8] node[auto,sloped] {} (nfunprocesstxqaft);
 
 	% Before activation
 	\draw[->] (nfunpropcode) to[out=0, in=10] node[auto,sloped] {before \texttt{activation()}} (nfunprocesstxq);
 	\draw[->] (nfunprocesstxq) to[out=0, in=10] node[auto,sloped] {} (nfunlmactxframe);
+	\draw[->, color=blue] (nfunpropcode) to[out=10, in=10,looseness=0.8] node[auto,sloped,pos=0.2] {After \texttt{activation()}} (nfunprocesstxqaft);
+	\draw[->, color=blue] (nfunprocesstxqaft) to[out=0, in=10] node[auto,sloped,] {} (nfuncalllmactxframe);
+	\draw[->, color=blue] (nfuncalllmactxframe) to[out=180, in=180,looseness=0.5] node[auto,sloped] {} (nfunlmactxframe);
 	
 
 \end{tikzpicture}
