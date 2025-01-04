@@ -1,0 +1,193 @@
+Here we talk about hooking.
+
+
+\newsavebox\funlmactxframe
+
+\lstset{
+	basicstyle=\ttfamily,
+	columns=fullflexible,
+	%frame=single,
+	breaklines=true,
+	postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},
+}
+
+\begin{lrbox}{\funlmactxframe}
+\begin{lstlisting}
+void lmacTxFrame(int param_1,int param_2)
+{
+    /*Decompiled code from the original libraries*/
+    4000a06a 93 97 49 03 li     a5,0x34
+    4000a06e b3 87 f5 02 mul    a5,a1,a5
+    4000a072 01 11       c.addi sp,-0x20
+    4000a074 22 cc       c.swsp s0,0x18(sp)
+    4000a076 37 04 88 40 lui    s0,0x40880
+    4000a07a 52 c4       c.swsp s4,0x8(sp)
+    ...
+}
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox\funpatchlmactxframe
+\begin{lrbox}{\funpatchlmactxframe}
+\begin{lstlisting}
+void patched_lmacTxFrame(int param_1,int param_2)
+{
+    /*Our patched version of lmacTxFrame*/
+}
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox\funactivation
+\begin{lrbox}{\funactivation}
+\begin{lstlisting}
+void activation()
+{
+    /*Our activation function*/
+    // lui+jalr to call_lmacTxFrame
+    uint32_t lui_instr  = 0x4200c0b7;   // LUI instruction
+    uint32_t jalr_instr = 0x1b4080e7;  // JALR instruction
+
+    uint32_t *base_ppProcessTxQ = (uint32_t *) 0x4080e3fc;
+    uint32_t offset_ppProcessTxQ = 0x70; // 0x4080e46c - 0x4080e3fc
+
+    // ppProcessTxQ
+    uint32_t *ppProcessTxQ_lui = \
+        (uint32_t *)((char *)base_ppProcessTxQ +\
+                     offset_ppProcessTxQ);
+    uint32_t *ppProcessTxQ_jalr = \
+        (uint32_t *)((char *)base_ppProcessTxQ +\
+                     offset_ppProcessTxQ + 0x4);
+    *ppProcessTxQ_lui = lui_instr;
+    *ppProcessTxQ_jalr = jalr_instr;    
+}
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox\funcalllmactxframe
+\begin{lrbox}{\funcalllmactxframe}
+\begin{lstlisting}
+/*Suppose the compiled code starts at 
+  0x4200c1b4*/
+void call_lmacTxFrame(int param_1,int param_2)
+{
+    /*Our function to call lmacTxFrame*/
+    counter++; // A global counter of how 
+               // many times lmacTxFrame is called
+    /*Do some processing such as changing the
+      channel before calling lmacTxFrame*/
+    return lmacTxFrame(param_1,param_2);
+    /* Or return patched_lmacTxFrame(param_1,param_2)
+       in case we want to patch the original function*/
+}
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox\funprocesstxq
+\begin{lrbox}{\funprocesstxq}
+\begin{lstlisting}
+void processTxQ()
+{
+    /*One among different functions from the 
+      original library that calls lmacTxFrame*/
+    4080e3fc 41 11       c.addi  sp,-0x10
+    4080e3fe 26 c2       c.swsp  s1,0x4(sp)
+    4080e400 06 c6       c.swsp  ra,0xc(sp)
+    4080e402 22 c4       c.swsp  s0,0x8(sp)
+    4080e404 aa 84       c.mv    s1,a0
+    ... 
+    4080e46c b7 a0 00 40 lui     ra,0x4000a
+    4080e470 e7 80 a0 06 jalr    ra,ra,offset=0x06a lmacTxFrame 
+    ...
+}
+\end{lstlisting}
+\end{lrbox}
+
+
+\newsavebox\funprocesstxqaft
+\begin{lrbox}{\funprocesstxqaft}
+\begin{lstlisting}
+void processTxQ()
+{
+    /*One among different functions from the 
+      original library that calls lmacTxFrame*/
+    4080e3fc 41 11       c.addi  sp,-0x10
+    4080e3fe 26 c2       c.swsp  s1,0x4(sp)
+    4080e400 06 c6       c.swsp  ra,0xc(sp)
+    4080e402 22 c4       c.swsp  s0,0x8(sp)
+    4080e404 aa 84       c.mv    s1,a0
+    ... 
+    4080e46c b7 c0 00 42 lui     ra,0x4200c
+    4080e470 e7 80 40 1b jalr    ra,ra,offset=0x1b4 call_lmacTxFrame 
+    ...
+}
+\end{lstlisting}
+\end{lrbox}
+
+\newsavebox\funpropcode
+\begin{lrbox}{\funpropcode}
+\begin{lstlisting}
+{
+/* Proprietary code that calls 
+   different functions among which
+   those that call lmacTxFrame,
+   such as ppProcessTxQ */
+     ...
+     ppProcessTxQ();
+     ...
+}
+\end{lstlisting}
+\end{lrbox}
+
+
+\newsavebox\funmain
+\begin{lrbox}{\funmain}
+\begin{lstlisting}
+void main()
+{
+    ...
+    /* Before activation, the call flow
+       is ppProcessTxQ -> lmacTxFrame */
+    activation();
+    /* After activation, the call flow
+       is ppProcessTxQ -> call_lmacTxFrame
+          -> lmacTxFrame (or patched_lmacTxFrame) */
+    ...
+}
+\end{lstlisting}
+\end{lrbox}
+
+
+Here we show the use of an activation function to 
+modify the flow of execution of a program by modifying 
+directly original assembly code.
+
+\begin{figure*}[ht]
+\begin{tikzpicture}[scale=0.55, 
+		    every node/.append style={transform shape}]
+	\node[draw] (nfunmain) {\usebox\funmain};
+	\node[draw, below=5cm of nfunmain] (nfunactivation) {\usebox\funactivation};
+	\node[draw, right=6cm of nfunmain] (nfunprocesstxq) {\usebox\funprocesstxq};
+	\node[draw, above=of nfunprocesstxq] (nfunpropcode) {\usebox\funpropcode};
+	\node[draw, below=of nfunprocesstxq] (nfunlmactxframe) {\usebox\funlmactxframe};
+	\node[draw, below=of nfunlmactxframe] (nfunprocesstxqaft) {\usebox\funprocesstxqaft};
+	\node[draw, below=of nfunprocesstxqaft] (nfuncalllmactxframe) {\usebox\funcalllmactxframe};
+	%\node[draw, below left=of nfuncalllmactxframe] (nfunlmactxframe) {\usebox\funlmactxframe};
+	\node[draw, below=of nfuncalllmactxframe] (nfunpatchlmactxframe) {\usebox\funpatchlmactxframe};
+
+	% using to for the edge between the nodes with in and out angles and text auto sloped
+	\draw[->] (nfunmain) to[out=-100,in=100] node[auto,sloped] {} (nfunactivation);
+	\draw[->, color=red] (nfunactivation) to[out=90,in=200] node[auto,sloped] {Injecting assembly} (nfunprocesstxq);
+	\draw[->, color=red] (nfunprocesstxq) to[out=0, in=0, looseness=0.8] node[auto,sloped] {} (nfunprocesstxqaft);
+
+	% Before activation
+	\draw[->] (nfunpropcode) to[out=0, in=10] node[auto,sloped] {before \texttt{activation()}} (nfunprocesstxq);
+	\draw[->] (nfunprocesstxq) to[out=0, in=10] node[auto,sloped] {} (nfunlmactxframe);
+	
+
+\end{tikzpicture}
+
+\caption{Original function processTxQ and the function after activation}
+\label{fig:workflowchange}
+
+\end{figure*}
+
