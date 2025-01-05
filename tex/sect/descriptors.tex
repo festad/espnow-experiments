@@ -13,7 +13,7 @@ typedef struct __attribute__((packed)) descriptor {
 	uint8_t _unknown_1 : 4;
 	uint8_t has_data : 1;
 	uint8_t owner : 1;
-	void* packet;
+	void* frame;
 	struct descriptor* next;
 } descriptor;
 \end{lstlisting}
@@ -39,11 +39,45 @@ that area starts with 2 words and the last 12 bits of the first word (little-end
 represent the length of the payload of the frame, that is, the length of the whole frame minus 15 bytes. 
 Interestingly enough the radiotap header is not always 15 bytes long, but even when a 18 bytes 
 long radiotap header is observed, the length of the payload is still 15 bytes less than the length of the frame.
-A 18 bytes long radiotap header is observed when the data rate is set to higher values such as 54 Mbps
+A 18 bytes long radiotap header is observed when the data rate is set to some other values such as 6.5Mb/s, 13Mb/s, 65Mb/s...
 and modulation techniques such as OFDM are used instead of DSSS as in the case of data rates such as 1 or 2 Mbps. 
 % VERIFY THIS
 % VERIFY THIS
 The third place where the length of the frame is indicated is in the area of memory reserved to
-peripheral registers, the address \texttt{0x600a5488} contains, in its last 12 bits (little-endian speaking),
+peripheral registers. 
+In case of certain data rates 
+such as 1Mb/s, 2Mb/s, 6Mb/s, 12Mb/s, 48Mb/s, 54Mb/s...the address \texttt{0x600a5488} contains, in its last 12 bits (little-endian speaking),
 the length of the payload of the frame (the length of the frame minus 15 bytes, the same value observed
 at the beginning of the packet area).
+In case of other data rates such as 6.5Mb/s, 13Mb/s, 65Mb/s... the address 
+\texttt{0x600a5494} contains in its bits from the 20th to the 9th (12 bits) the same length as before.
+
+\newsavebox{\memdescriptor}
+\begin{lrbox}{\memdescriptor}
+\begin{lstlisting}
+0x4082d434: 0xc04a4000 0x4082d4a8 0x00000000 0x00000000
+...
+0x4082d4a8: 0x00000121 0x00000000 0xa74600d0 0xffffffff
+0x4082d4b8: 0x4c40ffff 0xd85751ca 0xffffffff 0x0000ffff
+...
+// for some data rates
+0x600a5488: 0x00000121 ...
+// for other data rates
+0x600a5494: 0x00012100 ...
+...
+\end{lstlisting}
+\end{lrbox}
+\usebox{\memdescriptor}
+We underline that the values written above are only partially \textit{true},
+in particular the values in the two peripheral registers only contain the length value
+and not the remaining important informations regarding the data rate itself and 
+other yet to be discovered informations.  
+The example above shows a descriptor whose description field contains a length value
+of 0x129 (297 bytes), in fact the value 
+\texttt{110000 000100101001 00000000000000} of the description field contains
+as the length value the 12 bits \texttt{000100101001} that in decimal is 297,
+this reflects to a real length of $297+7=304$ bytes and to a payload length of $304-15=289$ bytes
+that is written as \texttt{0x121} at the beginning of the area referenced by the pointer to the frame and 
+in the peripheral register (either \texttt{0x600a5488} or \texttt{0x600a5494}).
+In the example above the descriptor does not point to a next descriptor, meaning it is the last
+of a queue.
