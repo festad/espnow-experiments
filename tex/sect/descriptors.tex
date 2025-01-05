@@ -1,0 +1,49 @@
+The libraries developed by Espressif create a linked structure of descriptors that
+is used to point to the content of the bytes being sent or received.
+Every packet is described by a triplet: a description of the packet, a pointer to the start of the packet
+and a pointer to the next descriptor. Each element of the triplet is a 32-bit word, unfortunately
+at the moment of writing it is not completely clear how the values in the description field are used
+but it is enough for us to be able to send a custom frame with a length of our choice.
+\newsavebox{\descriptor}
+\begin{lrbox}{\descriptor}
+\begin{lstlisting}
+typedef struct __attribute__((packed)) descriptor {
+	uint16_t _unknown_2 : 14;
+	uint16_t length : 12;
+	uint8_t _unknown_1 : 4;
+	uint8_t has_data : 1;
+	uint8_t owner : 1;
+	void* packet;
+	struct descriptor* next;
+} descriptor;
+\end{lstlisting}
+\end{lrbox}
+\usebox{\descriptor}
+The first word of the descriptor, that is the description, is a 32-bit field 
+that contains a bit indicating whether the packet is directed to the device,
+it is relevant during the reception of frames and, unless we
+are requiring a \textit{promiscuous mode}, when set to 0 the frame is discarded.
+The second bit is used to indicate whether the bytes in the area actually contain 
+meaningful data or if the content is garbage. The meaning of the following 4 bits, at the moment
+of writing, is not clear. 
+The length field is a 12-bit field that indicates the length of the frame and the last 14 bits,
+at the moment of writing, are not clear.
+The length represented in the 12 bits is comprehensive of the radiotap header, 
+the 802.11 radio information, the frame content and the FCS.
+In actuality, the lenght field in the description must be set to the length of the final desired
+length minus 7, that is, when the description field is \texttt{0xfff} (4095) the length of the frame
+will be 4102 bytes. The reason for this discrepancy of 7 bytes is not clear at the moment of writing.
+It is important to notice how this is only one of the different places where the length of the frame
+will be indicated, another place is in the first 4 bytes of the area referenced by the pointer to the packet:
+that area starts with 2 words and the last 12 bits of the first word (little-endian speaking)
+represent the length of the payload of the frame, that is, the length of the whole frame minus 15 bytes. 
+Interestingly enough the radiotap header is not always 15 bytes long, but even when a 18 bytes 
+long radiotap header is observed, the length of the payload is still 15 bytes less than the length of the frame.
+A 18 bytes long radiotap header is observed when the data rate is set to higher values such as 54 Mbps
+and modulation techniques such as OFDM are used instead of DSSS as in the case of data rates such as 1 or 2 Mbps. 
+% VERIFY THIS
+% VERIFY THIS
+The third place where the length of the frame is indicated is in the area of memory reserved to
+peripheral registers, the address \texttt{0x600a5488} contains, in its last 12 bits (little-endian speaking),
+the length of the payload of the frame (the length of the frame minus 15 bytes, the same value observed
+at the beginning of the packet area).
