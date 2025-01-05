@@ -1,6 +1,3 @@
-Here we talk about hooking.
-
-
 \newsavebox\funlmactxframe
 
 \lstset{
@@ -22,6 +19,13 @@ void lmacTxFrame(int param_1,int param_2)
     4000a074 22 cc       c.swsp s0,0x18(sp)
     4000a076 37 04 88 40 lui    s0,0x40880
     4000a07a 52 c4       c.swsp s4,0x8(sp)
+    ...
+    (&DAT_600a4d6c)[uVar8 * -4] = (&DAT_600a4d6c)[uVar8 * -4] | 0xc0000000;
+    /*In assembly:*/
+    4000a208 98 43       c.lw   a4,0x0(a5)
+    4000a20a b7 06 00 c0 lui    a3,0xc0000
+    4000a20e 55 8f       c.or   a4,a3
+    4000a210 98 c3       c.sw   a4,0x0(a5)
     ...
 }
 \end{lstlisting}
@@ -156,13 +160,73 @@ void main()
 \end{lstlisting}
 \end{lrbox}
 
+% TEXT HERE
+% TEXT HERE
+% TEXT HERE
+% TEXT HERE
 
-Here we show the use of an activation function to 
-modify the flow of execution of a program by modifying 
-directly original assembly code.
+During activiies of reverse engineering there is often the need to analyze a specific function
+in a specific context, e.g. calling that function directly without going through the whole
+workflow would be pointless; in other occasions it is necessary to know how and when said target
+function is called. Tools such as GDB allow to set breakpoints and analyze the call stack,
+but not always the result is satisfactory.
+
+In our specific case, after repeated attempts with GDB (and many \texttt{step over} and \texttt{step into} commands)
+we managed to understand the lowest level function and the lowest level instruction that sends a frame to the radio,
+that is, the function \texttt{void lmacTxFrame(int param\_1,int param\_2)} and the instruction \texttt{c.sw a4,0x0(a5)}
+at address \texttt{0x4000a210}.
+The inconvenience during our analysis was that breakpoints were not correctly set to the function \texttt{lmacTxFrame},so we relied on a technique that we call \textit{hooking}: we found with Ghidra the functions that call
+\texttt{lmacTxFrame} (among which the most important one is \texttt{ppProcessTxQ}, then we created our own wrapper function that we called \texttt{call\_lmacTxFrame} and we 
+modified \texttt{ppProcessTxQ} and all the functions that would normally call \texttt{lmacTxFrame}
+so that they would call \texttt{call\_lmacTxFrame} instead. 
+The way we chose to modify \texttt{ppProcessTxQ} (and the other functions, but from now we will refer only to
+\texttt{ppProcessTxQ}) was to inject assembly code that would mimic the call to \texttt{lmacTxFrame},
+by replacing the known address of our \texttt{call\_lmacTxFrame} function we forced the call to our function.
+
+This is the look of the original function \texttt{lmacTxFrame}:
+\usebox\funlmactxframe
+
+This is the look of the function \texttt{ppProcessTxQ} that calls \texttt{lmacTxFrame}:
+\usebox\funprocesstxq
+
+This is the look of the wrapper function \texttt{call\_lmacTxFrame} that we wrote in order
+to hook the call to \texttt{lmacTxFrame}:
+\usebox\funcalllmactxframe
+
+And this is the \textit{activation} function that we wrote to inject assembly code in \texttt{ppProcessTxQ}:
+\usebox\funactivation
+
+Notice that here we are injecting custom assembly code at a chosen address in the binary,
+before this step we also injected custom assembly code but without chosing the specific address,
+the intention was simply to test the assembly code that we wanted to inject to check whether it would
+actually jump to a specific address, we adopted a method similar to what is called \textit{shellcode injection}.
+\newsavebox\shellcode
+\begin{lrbox}{\shellcode}
+\begin{lstlisting}
+    // Shellcode to jump to a specific address
+    unsigned char shellcode[] = { 
+        0x40, 0x00, 0xa0, 0xb7, // lui ra,0x4000a
+	0x06, 0xa0, 0x80, 0xe7  // jalr ra,ra,offset=0x06a
+    };
+
+    // Execution of the shellcode
+    void (*execute_shellcode)(void) = (void (*)(void))shellcode;
+    execute_shellcode();
+
+    edit_return_to_call_patched_lmacTxFrame();
+\end{lstlisting}
+\end{lrbox}
+\usebox\shellcode
+The assembly code is saved in the variable \texttt{shellcode}, then the area of memory where the
+shellcode is stored is interpreted as code thanks to the cast to a pointer to a function that
+takes \texttt{void} and returns \texttt{void}. Notice that if the function at 
+\texttt{0x4000a06a} takes arguments, this shellcode will not pass said parameters correctly,
+in order to pass parameters correctly we would need to load the values in the appropriate registers,
+in RISC-V the first 8 arguments are passed in the registers \texttt{a0} to \texttt{a7} and 
+the return value is passed in \texttt{a0}, further arguments are passed on the stack.
 
 \begin{figure*}[ht]
-\begin{tikzpicture}[scale=0.55, 
+\begin{tikzpicture}[scale=0.5, 
 		    every node/.append style={transform shape}]
 	\node[draw] (nfunmain) {\usebox\funmain};
 	\node[draw, below=5cm of nfunmain] (nfunactivation) {\usebox\funactivation};
