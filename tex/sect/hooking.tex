@@ -92,7 +92,7 @@ void call_lmacTxFrame(int param_1,int param_2)
 void processTxQ()
 {
     /*One among different functions from the 
-      original library that calls lmacTxFrame*/
+      original library that call lmacTxFrame*/
     4080e3fc 41 11       c.addi  sp,-0x10
     4080e3fe 26 c2       c.swsp  s1,0x4(sp)
     4080e400 06 c6       c.swsp  ra,0xc(sp)
@@ -246,9 +246,10 @@ the return value is passed in \texttt{a0}, further arguments are passed on the s
 	% Before activation
 	\draw[->] (nfunpropcode) to[out=0, in=10] node[auto,sloped] {before \texttt{activation()}} (nfunprocesstxq);
 	\draw[->] (nfunprocesstxq) to[out=0, in=10] node[auto,sloped] {} (nfunlmactxframe);
-	\draw[->, color=blue] (nfunpropcode) to[out=10, in=10,looseness=0.8] node[auto,sloped,pos=0.2] {After \texttt{activation()}} (nfunprocesstxqaft);
+	\draw[->, color=blue] (nfunpropcode) to[out=10, in=10,looseness=0.8] node[auto,sloped,pos=0.2] {after \texttt{activation()}} (nfunprocesstxqaft);
 	\draw[->, color=blue] (nfunprocesstxqaft) to[out=0, in=10] node[auto,sloped,] {} (nfuncalllmactxframe);
-	\draw[->, color=blue] (nfuncalllmactxframe) to[out=180, in=180,looseness=0.5] node[auto,sloped] {} (nfunlmactxframe);
+	\draw[->, color=blue] (nfuncalllmactxframe) to[out=170, in=180,looseness=0.5] node[auto,sloped] {} (nfunlmactxframe);
+	\draw[->, color=green,] (nfuncalllmactxframe) to[out=190, in=180, looseness=0.8] node[auto,sloped] {} (nfunpatchlmactxframe);
 	
 
 \end{tikzpicture}
