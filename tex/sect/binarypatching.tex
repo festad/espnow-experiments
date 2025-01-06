@@ -1,0 +1,172 @@
+While reversing the original implementation of wifi functionalities, it was useful to reimplement 
+some core functions ourselves to better understand them, moreover, if the goal is to create
+an open source driver for the wifi whip, reimplementing binary code in a more readable form
+(like C) is the main step.
+The open source software Ghidra (developed by the NSA) was used to obtain 
+a disassembled version of the binary code. Although powerful, Ghidra is not perfect and
+sometimes the disassembled code is not perfect, e.g., it might not recognize the exact
+number of parameters of a function. 
+We will show an example of one of the most important function we reimplemented,
+\texttt{lmacTxFrame}, responsible for sending a frame, also mentioned in the section \ref{sec:hooking}.
+The code below is a simplified version of the disassembly obtained from Ghidra,
+some function calls were not trivial to understand because
+the symbolic names were not available, so we had to mimic the calls
+using function pointers to addresses available in the binary and 
+
+\lstset{
+	basicstyle=\ttfamily,
+	columns=fullflexible,
+	breaklines=true,
+	postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space},
+}
+
+%\newsavebox{\funlmactxframe}
+%\begin{lrbox}{\funlmactxframe}
+\begin{lstlisting}
+
+void lmacTxFrame(int param_1,int param_2)
+
+{
+  undefined uVar1;
+  ushort uVar2;
+  int iVar3;
+  uint uVar4;
+  uint *puVar5;
+  int iVar6;
+  int iVar7;
+  uint uVar8;
+  int *piVar9;
+  
+  gp = coex_schm_ble_mesh_standby_\
+          bt_a2dp_paused_wifi_connecting;
+  piVar9 = (int *)(param_2 * 0x34 + 0x4087f840);
+  if (*(char *)(param_2 * 0x34 + 0x4087f852) != '\x04') {
+    ...
+    iVar3 = (**(code **)(_pp_wdev_funcs + 0xe4))(param_1,*(code **)(_pp_wdev_funcs + 0xe4));
+    puVar5 = *(uint **)(param_1 + 0x34);
+    ...
+    if ((((int)(*puVar5 << 0x13) < 0) && (*(char *)(param_2 * 0x34 + 0x4087f852) == '\x03')) &&
+       (*(byte *)(_lmacConfMib_ptr + 0x2a) <= *(byte *)((int)puVar5 + 5))) {
+      *puVar5 = *puVar5 & 0xffffefff | 0x100;
+      ...
+    }
+    ...
+    (**(code **)(_pp_wdev_funcs + 0xe8))(piVar9,0,*(code **)(_pp_wdev_funcs + 0xe8));
+  }
+  ...
+}
+\end{lstlisting}
+%\end{lrbox}
+
+%\usebox{\funlmactxframe}
+
+The code above is the corrispondent reimplementation in C, again simplified in
+order to mirror only the displayed portions of the disassembly.
+%\newsavebox{\funpatchlmactxframe}
+%\begin{lrbox}{\funpatchlmactxframe}
+\begin{lstlisting}
+
+void patched_lmacTxFrame(int param_1, int param_2)
+{
+  uint8_t uVar1;
+  uint16_t uVar2;
+  int iVar3;
+  uint32_t uVar4; 
+  uint32_t *puVar5;
+  int iVar6;
+  int iVar7;
+  uint32_t uVar8;
+  int *piVar9;
+
+  ESP_LOGI(TAG, "patched_lmacTxFrame: address: 0x%"PRIx32"", (uint32_t)param_1);
+
+  piVar9 = (int *)(param_2 * 0x34 + (char *)our_instances_ptr); // Calculating the instance structure
+  if (*(char *)(param_2 * 0x34 + (char *)our_instances_ptr + 0x12) != '\x04') {
+    ...
+    // Call an external function at address 0xXXXXXXXX, e.g., _pp_wdev_funcs + 0xe4
+    iVar3 = patched_lmacIsLongFrame(param_1); // Replace with actual address
+    puVar5 = *(uint32_t **)(param_1 + 0x34);
+    ...
+    // Check another condition and modify the frame if needed
+    if ((((int)(*puVar5 << 0x13) < 0) && (*(char *)(param_2 * 0x34 + (char *)our_instances_ptr + 0x12) == '\x03')) && (*(uint8_t *)(lmacConfMib_ptr + 0x2a) <= *(uint8_t *)((int)puVar5 + 5))) {
+      *puVar5 = (*puVar5 & 0xffffefff) | 0x100;
+      ...
+    }
+    ...
+    patched_lmacSetTxFrame(piVar9, 0); // Replace with actual address
+  }
+ ...
+}
+\end{lstlisting}
+%\end{lrbox}
+
+%\usebox{\funpatchlmactxframe}
+
+A first example of discrepancy between the closed source disassembly and the
+open source reimplementation is the use of the symbol \texttt{our\_instances\_prt}
+that in the original code is obfuscated by the address \texttt{0x4087f840};
+this might happen because the specific function \texttt{lmacTxFrame} is
+located in the rom of the chip and the address is fixed, whereas 
+in another function located in ram (\texttt{lmacTxDone}, which we will mention later) the symbol
+\texttt{our\_instances\_ptr} is used.
+We could have used the address \texttt{0x4087f840} directly, but we decided to use the symbol because,
+although not in this case, values of the addresses might change depending even on the specific
+build of the program, and using the symbol, in addition to being resilient to addresses changes,
+makes the code more readable.
+Another difference is the way some functions are called,
+e.g. \texttt{(**(code **)(\_pp\_wdev\_funcs + 0xe8))(piVar9,0,*(code **)(\_pp\_wdev\_funcs + 0xe8));}
+is a call to a function pointer whose address is stored at \texttt{\_pp\_wdev\_funcs + 0xe8},
+here it is possible to get confused by Ghidra's notation. 
+Ghidra suggests the value \texttt{0x4087ff70} when hovering on
+the symbol \texttt{\_pp\_wdev\_funcs}, but it is not
+always easy to distinguish whether \texttt{0x4087ff70} is actually
+the address at which the symbol is stored or the constant
+value of the symbol itself, therefore the sum \texttt{\_pp\_wdev\_funcs + 0xe8}
+might be interpreted in two different ways:
+\begin{itemize}
+\item getting the address of \texttt{\_pp\_wdev\_funcs},
+which Ghidra automatically suggests to be \texttt{0x4087ff70}, then adding
+\texttt{0xe8} to it, resulting in \texttt{0x40880058}, and using this result as
+the address of the function pointer;
+\item getting the address of \texttt{\_pp\_wdev\_funcs}, loading the value at that address
+(\texttt{*(uint32\_t *)0x4087ff70} or \texttt{*(uint32\_t *)\&\_pp\_wdev\_funcs}),
+adding \texttt{0xe8} to the value loaded from \texttt{0x4087ff70}, and using this result as
+the address of the function pointer.
+\end{itemize}
+The only way to know which interpretation is correct is to look at the assembly code,
+we will paste just the needed portion below:
+
+%\newsavebox{\funlmactxframeassembly}
+%\begin{lrbox}{\funlmactxframeassembly}
+\begin{lstlisting}
+4000a098 b7 04 88 40     lui        s1,0x40880
+...
+4000a0bc 83 a7 04 f7     lw         a5,-0x90(s1=>pp_wdev_funcs)
+4000a0c0 56 85           c.mv       a0,s5
+4000a0c2 83 a7 47 0e     lw         a5,0xe4(a5)
+4000a0c6 82 97           c.jalr     a5
+\end{lstlisting}
+%\end{lrbox}
+
+%\usebox{\funlmactxframeassembly}
+
+Now it becomes clear that the correct interpretation is the second one,
+we first need to load the value at the address suggested by Ghidra \texttt{0x4087ff70},
+which is not the value of the symbol itself but the address at which the symbol is located,
+in assembly the first portion of the address is loaded into the register \texttt{s1} as
+the value \texttt{0x40880000}, then the exact address is represented by
+the \texttt{-0x90} offset from \texttt{s1}, which leads to \texttt{0x4087ff70},
+the instruction \texttt{lw a5,-0x90(s1)} loads the value at \texttt{0x40880000-0x90} into \texttt{a5},
+we know we have to load 4 bytes because to load a 16-bit value we would have read the instruction
+\texttt{lhu a5,-0x90(s1)} and to load an 8-bit value we would have read the instruction
+\texttt{lb a5,-0x90(s1)}. 
+The value loaded is then used again as an address in \texttt{lw a5,0xe4(a5)} to load
+the actual function pointer address into \texttt{a5}. 
+The \texttt{jalr a5} performs the jump-and-link operation to call the function at the address
+stored in \texttt{a5}.
+
+A similar reasoning can be applied to the portion of code using the symbol \texttt{\_lmacConfMib\_ptr}.
+First, it is important to understand the assembly and it might be preferable to use hardcoded addresses,
+then with some \texttt{printf} debugging it is possible to tell whether the hardcoded address
+is the value of the symbol being investigated or the address at which the symbol is stored.
+

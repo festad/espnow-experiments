@@ -184,17 +184,22 @@ The way we chose to modify \texttt{ppProcessTxQ} (and the other functions, but f
 by replacing the known address of our \texttt{call\_lmacTxFrame} function we forced the call to our function.
 
 This is the look of the original function \texttt{lmacTxFrame}:
+
 \usebox\funlmactxframe
 
 This is the look of the function \texttt{ppProcessTxQ} that calls \texttt{lmacTxFrame}:
+
 \usebox\funprocesstxq
 
 This is the look of the wrapper function \texttt{call\_lmacTxFrame} that we wrote in order
 to hook the call to \texttt{lmacTxFrame}:
+
 \usebox\funcalllmactxframe
 
 And this is the \textit{activation} function that we wrote to inject assembly code in \texttt{ppProcessTxQ}:
+
 \usebox\funactivation
+
 
 Notice that here we are injecting custom assembly code at a chosen address in the binary,
 before this step we also injected custom assembly code but without chosing the specific address,
@@ -216,7 +221,9 @@ actually jump to a specific address, we adopted a method similar to what is call
     edit_return_to_call_patched_lmacTxFrame();
 \end{lstlisting}
 \end{lrbox}
+
 \usebox\shellcode
+
 The assembly code is saved in the variable \texttt{shellcode}, then the area of memory where the
 shellcode is stored is interpreted as code thanks to the cast to a pointer to a function that
 takes \texttt{void} and returns \texttt{void}. Notice that if the function at 
