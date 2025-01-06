@@ -1,0 +1,85 @@
+Our main goal was to understand the way 802.11 frames are sent
+and received by the esp32c6.
+The libraries provided by Espressif rely on FreeRTOS,
+a real-time operating system that offers the programmers a
+set of functions to manage tasks, queues, semaphores and other 
+resources.
+
+The first step of our investigation was to
+build a sample application that would allow us to send and
+receive 802.11, fortunately Espressif provides a lot of
+useful examples that we could use as a starting point,
+we wrote a sample application that would connect to an
+access point and download the page \url{http://example.com}.
+By building the application we could obtain the ELF file
+that we could analyze with Ghidra.
+The ELF alone was not enough, some functions were not
+available in the ELF (among which, \texttt{lmacTxFrame} which 
+sends frames), so we had to dump the rom and import
+it into Ghidra.
+Although the great help of Ghidra, some functions were
+not easily understandable because they would call other 
+functions by means of unreferenced function pointers,
+so we had to use GDB to understand the flow of the program.
+Later, we decided to focus on sample programs that would
+rely on the \textit{espnow} protocol, the reason was that
+espnow is a protocol developed by Espressif that allows
+two or more esp32 to communicate without the need of an
+access point, this would supposedly simplify the analysis
+because we would not have to deal with the complexity of
+the full TCP/IP stack but only with the second layer of it,
+the MAC layer, in particular, the 802.11 protocol.
+We built a sample application that would send and receive 
+espnow frames and verified that the frames were correctly
+sent and received between two esp32c6.
+With some sessions of debugging with GDB we could individuate
+the function \texttt{lmacTxFrame} as the responsible for sending
+frames (in actuality, many functions are involved in the process
+but \texttt{lmacTxFrame} is the one that contains a
+\texttt{store-word} instruction that writes a value to an
+MMIO register that triggers the sending of the frame: \texttt{0x600a4d6c}).
+We talk about how we intercepted this function in \ref{sec:hooking} to understand
+when it is called.
+Once the \textit{lowest level} function was found, we binary patched some functions
+starting both from the \textit{top} level of abstraction and
+the \textit{bottom} level of abstraction, hoping to find 
+at a certain point a \textit{junction} where the two paths would meet.
+Starting from the top level of abstraction, we patched:
+\begin{itemize}
+\item \texttt{esp\_now\_send}
+\item \texttt{mt\_send}
+\item \texttt{ieee80211\_send\_action\_vendor\_spec}
+\item \texttt{ieee80211\_post\_hmac\_tx}
+\item \texttt{pp\_post}
+\end{itemize}
+Starting from the bottom level of abstraction, we patched:
+\begin{itemize}
+\item \texttt{lmacTxFrame}
+\item \texttt{lmacSetTxFrame}
+\item \texttt{lmacIsLongFrame}
+\end{itemize}
+We could not find a junction between the two paths because,
+although we understood that \texttt{lmacTxFrame} is called 
+by \texttt{ppProcessTxQ} which is again called by \texttt{ppTask},
+we could not find a way to call \texttt{ppTask}.
+After some more debugging, we realized that \texttt{ppTask} is
+exactly the main task handling the Wi-Fi features of the esp32c6
+(and the esp32 in general).
+The function \texttt{ppTask} runs in a thread which we will refer
+to as \textit{wifi thread}, it basically keeps listening over
+a shared queue for events and, based on the received event, it
+calls the appropriate function.
+
+Our objective became to substitute \texttt{ppTask} with a simpler implementation
+that would allow us to send and receive 802.11 frames, at the moment of writing,
+we have a demo that does not work resiliently, in order to investigate why 
+we changed our demo to work on a single thread, without a dedicated
+task that listens for events but by calling directly the functions needed 
+to send and receive frames: we reached a point where we can have our demo
+working for at least half an hour if we print logs to the console but 
+then it stops working when we remove the logs, suggesting that a delay is
+needed in order to keep the system working.
+Once we will understand the reason for this, we might be able to revert
+to the multi-threaded approach.
+We will delve more into our demo later in \ref{sec:demo}.
+

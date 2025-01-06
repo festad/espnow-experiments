@@ -19,6 +19,7 @@ typedef struct __attribute__((packed)) descriptor {
 \end{lstlisting}
 \end{lrbox}
 \usebox{\descriptor}
+
 The first word of the descriptor, that is the description, is a 32-bit field 
 that contains a bit indicating whether the packet is directed to the device,
 it is relevant during the reception of frames and, unless we
@@ -68,6 +69,7 @@ In case of other data rates such as 6.5Mb/s, 13Mb/s, 65Mb/s... the address
 \end{lstlisting}
 \end{lrbox}
 \usebox{\memdescriptor}
+
 We underline that the values written above are only partially \textit{true},
 in particular the values in the two peripheral registers only contain the length value
 and not the remaining important informations regarding the data rate itself and 
