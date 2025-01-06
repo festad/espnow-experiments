@@ -164,9 +164,13 @@ The value loaded is then used again as an address in \texttt{lw a5,0xe4(a5)} to 
 the actual function pointer address into \texttt{a5}. 
 The \texttt{jalr a5} performs the jump-and-link operation to call the function at the address
 stored in \texttt{a5}.
+After correctly reimplementing the function call, we could confirm that the function being
+called was \texttt{lmacSetTxFrame} with GDB and we could substitute in the code an explicit
+call using that symbol (or our patched version of it, \texttt{patched\_lmacSetTxFrame}).
 
 A similar reasoning can be applied to the portion of code using the symbol \texttt{\_lmacConfMib\_ptr}.
 First, it is important to understand the assembly and it might be preferable to use hardcoded addresses,
 then with some \texttt{printf} debugging it is possible to tell whether the hardcoded address
 is the value of the symbol being investigated or the address at which the symbol is stored.
+
 
