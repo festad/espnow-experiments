@@ -94,6 +94,8 @@ inline uint32_t read_register(uint32_t address) {
 void wifi_hw_start(uint32_t param_1); // call with 2 for promiscuous mode
 void ic_set_vif(uint32_t param_1, int param_2, uint32_t mac_address_ptr, uint8_t param_4, uint8_t param_5, uint32_t param_6);
 void lmacProcessTxComplete(void);
+void lmacProcessCollisions(void);
+void lmacProcessAllTxTimeout(void);
 void esp_rom_delay_us(long unsigned int param_1);
 
 
@@ -292,29 +294,56 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 {
 	interrupt_count++;
 	// Print the interrupt count
-	ESP_LOGD(TAG, "Interrupt count: %d", interrupt_count);
+	// ESP_LOGD(TAG, "Interrupt count: %d", interrupt_count);
 
 	uint32_t cause = read_register(WIFI_DMA_INT_STATUS);
 	// Print the cause of the interrupt
-	ESP_LOGD(TAG, "Interrupt cause: %08x", (int)cause);
+	// ESP_LOGD(TAG, "Interrupt cause: %08x", (int)cause);
 	if (cause == 0)
 	{
 		return;
 	}
 	write_register(WIFI_DMA_INT_CLR, cause);
 
-	if (cause & 0x800)
-	{
-		ESP_LOGW(TAG, "panic watchdog()");
-	}
 	volatile bool tmp = false;
 	// if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
-	// {
+	//
+
 	hardware_queue_entry_t queue_entry;
 	queue_entry.type = RX_ENTRY;
 	queue_entry.content.rx.interrupt_received = cause;
 	bool higher_prio_task_woken = false;
-	xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
+
+	if(cause & 0x8000)
+	{
+		// ESP_LOGW(TAG, "panic watchdog()");
+	}
+	if(cause & 0x1000024)
+	{
+		// ESP_LOGW(TAG, "received message");
+		// handle_rx_messages(pvParameter->_rx_callback);
+		// handle_rx_messages(&on_receive);
+		xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
+		// transmit_one(0);
+	}
+	if(cause & 0x80)
+	{
+		// ESP_LOGW(TAG, "lmacPostTxComplete");
+		lmacProcessTxComplete();
+		// ESP_LOGW(TAG, "lmacPostTxComplete done");
+	}
+	if(cause & 0x80000)
+	{
+		lmacProcessAllTxTimeout();
+	}
+	if(cause & 0x100)
+	{
+		// ESP_LOGW(TAG, "lmacProcessCollisions");
+		lmacProcessCollisions();
+	}	
+
+
+	// xQueueSendFromISR(hardware_event_queue, &queue_entry, &higher_prio_task_woken);
 	if (higher_prio_task_woken)
 	{
 		portYIELD_FROM_ISR();
