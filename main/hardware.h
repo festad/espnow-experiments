@@ -20,3 +20,4 @@ void set_datarate(uint8_t datarate, uint32_t length);
 void tx_task(hardware_mac_args *pvParameter);
 void wifi_hardware_task(void *pvParameter);
 void reading_task(void *ignored);
+void deauthing_task(void *ignored);

