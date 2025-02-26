@@ -265,7 +265,7 @@ void transmit_one(uint8_t *metapacket, uint8_t index, int repeat) {
 	tx_item->owner = 1;
 	tx_item->has_data = 1;
 	tx_item->length = len_m_7;
-	tx_item->packet = (uint32_t)metapacket;
+	tx_item->packet = metapacket;
 	tx_item->next = NULL;
 
 	write_register(WIFI_TX_CONFIG_BASE, read_register(WIFI_TX_CONFIG_BASE) | 0xa);
@@ -305,14 +305,14 @@ void IRAM_ATTR wifi_interrupt_handler(void* args)
 	}
 	write_register(WIFI_DMA_INT_CLR, cause);
 
-	volatile bool tmp = false;
+	BaseType_t tmp = false;
 	if (xSemaphoreTakeFromISR(rx_queue_resources, &tmp))
 	{
 
 		hardware_queue_entry_t queue_entry;
 		queue_entry.type = RX_ENTRY;
 		queue_entry.content.rx.interrupt_received = cause;
-		bool higher_prio_task_woken = false;
+		BaseType_t higher_prio_task_woken = false;
 
 
 		// if(cause & 0x1000024)
@@ -641,7 +641,7 @@ void send_deauth_from_to(const void *data)
 	transmit_one(custom_deauth_packet, 0, 20);
 }
 
-void wifi_hardware_task(hardware_mac_args *pvParameter) 
+void wifi_hardware_task(void *pvParameter) 
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	cfg.static_rx_buf_num = 2; // we won't use these buffers, so reduce the amount from default 10, so we don't waste as much memory
@@ -679,7 +679,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 //	esp_wifi_set_promiscuous(true);
 //	ESP_LOGW(TAG, "done esp_wifi_set_promiscuous");	
 
-	char *broadcast_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	uint8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 	ESP_LOGI(TAG, "Calling wifi_hw_start(2)");
 	wifi_hw_start(2);
@@ -826,7 +826,7 @@ void wifi_hardware_task(hardware_mac_args *pvParameter)
 
 
 
-void reading_task(void)
+void reading_task(void *ignored)
 {
     ESP_LOGI(TAG, "Starting reading_task");
 

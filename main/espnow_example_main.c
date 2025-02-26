@@ -15,8 +15,8 @@
 
 // DISCLAIMER
 // This code is all work of the ZEUS WPI research group and Jasper Devreker,
-// my contribution level is practically zero, 
-// I just tried to adapt it to work on an esp32c6. 
+// my contribution level is practically zero,
+// I just tried to adapt it to work on an esp32c6.
 // This code mostly looks like their first commit.
 // The first article of the series they wrote on the subject is here:
 // https://zeus.ugent.be/blog/23-24/open-source-esp32-wifi-mac/
@@ -48,9 +48,9 @@ void app_main(void)
     }
     ESP_ERROR_CHECK( ret );
 
-	// ESP_LOGW(TAG, "calling esp_netif_init");
-	// ESP_ERROR_CHECK(esp_netif_init());
-	// ESP_LOGW(TAG, "done esp_netif_init");
+    // ESP_LOGW(TAG, "calling esp_netif_init");
+    // ESP_ERROR_CHECK(esp_netif_init());
+    // ESP_LOGW(TAG, "done esp_netif_init");
 
     // args: osi_thread_run, name, stack size, &start_arg, priority, &thread->thread_handle, core
     xTaskCreatePinnedToCore(&wifi_hardware_task, "wifi_hardware_task", 4096, NULL /* &open_hw_args*/ , 5, NULL, 0);
